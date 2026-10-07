@@ -12,7 +12,7 @@ use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::reveal;
 use crate::model::search::{Hit, DEFAULT_LIMIT};
 use crate::splash;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Forwards index progress to the frontend as the `index-status` event.
 pub fn status_emitter(app: &AppHandle) -> Emit {
@@ -53,9 +53,12 @@ pub fn splash_ready(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+/// Off the main thread: probing a sleeping USB disk can take seconds.
 #[tauri::command]
-pub fn list_drives() -> AppResult<Vec<Drive>> {
-    Ok(drives::list())
+pub async fn list_drives() -> AppResult<Vec<Drive>> {
+    tauri::async_runtime::spawn_blocking(drives::list)
+        .await
+        .map_err(|err| AppError::Invalid(format!("listing drives stopped: {err}")))
 }
 
 /// The drives chosen in setup; null until setup has been done.
@@ -70,13 +73,17 @@ pub fn set_scan_drives(db: State<'_, Db>, letters: Vec<String>) -> AppResult<Vec
 }
 
 /// (Re)indexes the drives saved in setup; progress arrives as `index-status` events.
+/// Off the main thread: starting waits for the index lock, which a snapshot save
+/// can hold for a moment.
 #[tauri::command]
-pub fn start_index(
-    app: AppHandle,
-    db: State<'_, Db>,
-    index: State<'_, Arc<IndexService>>,
-) -> AppResult<()> {
-    index.start_saved(&db, status_emitter(&app))
+pub async fn start_index(app: AppHandle) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<Db>();
+        let index = app.state::<Arc<IndexService>>();
+        index.start_saved(&db, status_emitter(&app))
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("indexing could not start: {err}")))?
 }
 
 #[tauri::command]
