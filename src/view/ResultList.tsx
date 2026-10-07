@@ -16,10 +16,9 @@ type Props = {
   /** The rendered rows by index, for placing the menu at the selected one. */
   rows: RefObject<(HTMLLIElement | null)[]>;
   onSelect: (index: number) => void;
-  onReveal: (index: number) => void;
   onMenu: (at: { x: number; y: number }, index: number) => void;
   onTag: (tag: string) => void;
-  /** The colour of each colour tag, by name. */
+  /** The colour of each preset tag, by name. */
   tagColors: Record<string, string>;
   /** Changes when the selected row must be scrolled back into view. */
   reveal: number;
@@ -43,7 +42,6 @@ export function ResultList({
   meta,
   rows,
   onSelect,
-  onReveal,
   onMenu,
   onTag,
   tagColors,
@@ -148,7 +146,6 @@ export function ResultList({
               className={index === selected ? "result is-selected" : "result"}
               style={{ top: index * rowHeight }}
               onMouseDown={() => onSelect(index)}
-              onDoubleClick={() => onReveal(index)}
               onContextMenu={(event) => {
                 event.preventDefault();
                 onMenu({ x: event.clientX, y: event.clientY }, index);
@@ -178,7 +175,18 @@ export function ResultList({
                     </button>
                   ))}
                 </span>
-                <span className="result-path">{folderOf(hit.path)}</span>
+                {hit.line === undefined ? (
+                  <span className="result-path">{folderOf(hit.path)}</span>
+                ) : (
+                  <span className="result-path is-snippet" title={folderOf(hit.path)}>
+                    <span className="result-line-no" aria-label={`Line ${hit.line}`}>
+                      {hit.line}
+                    </span>
+                    {highlight(hit.snippet ?? "", query).map((part, i) =>
+                      part.match ? <mark key={i}>{part.text}</mark> : part.text,
+                    )}
+                  </span>
+                )}
               </span>
               <HitMeta meta={describeHit(details[hit.path])} />
             </li>

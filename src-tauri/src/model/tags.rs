@@ -21,7 +21,8 @@ pub struct TagInfo {
     pub tag: String,
     /// The colour a preset tag is drawn in; custom tags have none.
     pub color: Option<String>,
-    /// True for the colour tags that ship with the app and cannot be deleted.
+    /// True for the named tags that ship with the app (Working, Doc, …) and cannot
+    /// be deleted.
     pub preset: bool,
     pub folders: u32,
 }
@@ -46,8 +47,8 @@ pub fn add(db: &Db, path: &str, tag: &str) -> AppResult<Vec<String>> {
     tags_of(&conn, &path)
 }
 
-/// Every tag that can be picked, with its folder count: the colour presets in their
-/// fixed order, then custom tags by name.
+/// Every tag that can be picked, with its folder count: the presets in their fixed
+/// order, then custom tags by name.
 pub fn catalog(db: &Db) -> AppResult<Vec<TagInfo>> {
     catalog_of(&*db.conn()?)
 }
@@ -65,7 +66,7 @@ pub fn create(db: &Db, tag: &str) -> AppResult<Vec<TagInfo>> {
 }
 
 /// Deletes a custom tag, taking it off every folder, and returns the catalog. The
-/// colour presets cannot be deleted.
+/// presets cannot be deleted.
 pub fn delete(db: &Db, tag: &str) -> AppResult<Vec<TagInfo>> {
     let tag = normalize_tag(tag)?;
     let mut conn = db.conn()?;
@@ -79,7 +80,7 @@ pub fn delete(db: &Db, tag: &str) -> AppResult<Vec<TagInfo>> {
         None => return Err(AppError::Invalid(format!("there is no tag {tag}"))),
         Some(true) => {
             return Err(AppError::Invalid(format!(
-                "{tag} is a colour tag and cannot be deleted"
+                "{tag} is a preset tag and cannot be deleted"
             )))
         }
         Some(false) => {}
@@ -270,29 +271,39 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_lists_the_colour_presets_then_custom_tags_with_counts() {
+    fn the_catalog_lists_the_presets_then_custom_tags_with_counts() {
         let db = db::open_in_memory().unwrap();
         let (a, b) = (folder("cat-a"), folder("cat-b"));
         add(&db, &a, "work").unwrap();
         add(&db, &b, "work").unwrap();
-        add(&db, &a, "blue").unwrap();
-        create(&db, "archive").unwrap();
+        add(&db, &a, "Working").unwrap();
+        create(&db, "backup").unwrap();
         let found = catalog(&db).unwrap();
         let names: Vec<&str> = found.iter().map(|t| t.tag.as_str()).collect();
         assert_eq!(
             names,
-            ["red", "orange", "yellow", "green", "blue", "purple", "gray", "archive", "work"]
+            [
+                "working",
+                "doc",
+                "important",
+                "todo",
+                "review",
+                "personal",
+                "archive",
+                "backup",
+                "work"
+            ]
         );
         assert_eq!(
-            found[4],
+            found[0],
             TagInfo {
-                tag: "blue".into(),
+                tag: "working".into(),
                 color: Some("blue".into()),
                 preset: true,
                 folders: 1
             }
         );
-        assert_eq!(found[7], custom("archive", 0));
+        assert_eq!(found[7], custom("backup", 0));
         assert_eq!(found[8], custom("work", 2));
     }
 
@@ -301,7 +312,7 @@ mod tests {
         let db = db::open_in_memory().unwrap();
         let after = create(&db, " #FW ").unwrap();
         assert!(after.contains(&custom("fw", 0)));
-        for bad in ["fw", "FW", "red", "two words", ""] {
+        for bad in ["fw", "FW", "doc", "two words", ""] {
             assert!(
                 matches!(create(&db, bad), Err(AppError::Invalid(_))),
                 "{bad}"
@@ -326,10 +337,13 @@ mod tests {
     fn a_preset_or_unknown_tag_cannot_be_deleted() {
         let db = db::open_in_memory().unwrap();
         let dir = folder("del-preset");
-        add(&db, &dir, "red").unwrap();
-        assert!(matches!(delete(&db, "red"), Err(AppError::Invalid(_))));
+        add(&db, &dir, "important").unwrap();
+        assert!(matches!(
+            delete(&db, "Important"),
+            Err(AppError::Invalid(_))
+        ));
         assert!(matches!(delete(&db, "nothing"), Err(AppError::Invalid(_))));
-        assert_eq!(folders_with(&db, &["red".into()]).unwrap(), [dir]);
+        assert_eq!(folders_with(&db, &["important".into()]).unwrap(), [dir]);
     }
 
     #[test]

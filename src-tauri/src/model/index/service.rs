@@ -23,7 +23,7 @@ use crate::model::db::Db;
 use crate::model::drives::{self, Method};
 use crate::model::index::store::VolumeIndex;
 use crate::model::index::{mft, snapshot, walk, watch};
-use crate::model::search::{self, Hit, Query};
+use crate::model::search::{self, Page, Query};
 use crate::model::win32::{self, Journal};
 
 /// How the service reports progress; the app turns it into an `index-status` event.
@@ -189,16 +189,47 @@ impl IndexService {
         move || self.query.load(Ordering::Relaxed) != mine
     }
 
-    /// Searches every ready drive. Returns `None` when `cancelled` reports, before it
-    /// finished, that a newer search replaced this one, so the caller can drop it.
+    /// Stops every search still running, as a newer search would, without starting
+    /// one: for a content scan nobody waits for any more.
+    pub fn cancel_searches(&self) {
+        self.query.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Searches every ready drive for `count` results from rank `offset`. Returns
+    /// `None` when `cancelled` reports, before it finished, that a newer search
+    /// replaced this one, so the caller can drop it.
     pub fn search(
         &self,
         query: &Query,
-        limit: usize,
+        offset: usize,
+        count: usize,
         cancelled: &(dyn Fn() -> bool + Sync),
-    ) -> Option<Vec<Hit>> {
+    ) -> Option<Page> {
         let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
-        search::run(&volumes, query, limit, cancelled)
+        search::run(&volumes, query, offset, count, cancelled)
+    }
+
+    /// The paths of the files on every ready drive whose lowercase name `keep`
+    /// accepts. They are read under the index lock and handed back, so a long job on
+    /// them never holds it. `None` once `cancelled` reports.
+    pub fn files_where(
+        &self,
+        keep: impl Fn(&str) -> bool,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<Vec<String>> {
+        let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
+        let mut paths = Vec::new();
+        for index in volumes.iter() {
+            for id in 0..index.node_count() {
+                if id % 65_536 == 0 && cancelled() {
+                    return None;
+                }
+                if index.is_live(id) && !index.is_dir(id) && keep(index.lower_name(id)) {
+                    paths.push(index.path(id));
+                }
+            }
+        }
+        Some(paths)
     }
 
     /// Bytes of memory the indexes of the chosen drives hold.
@@ -524,6 +555,7 @@ fn root_letter(index: &VolumeIndex) -> char {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::search::Hit;
 
     fn volume(letter: char, names: &[&str]) -> VolumeIndex {
         let mut index = VolumeIndex::new(format!("{letter}:\\"), 0);
@@ -538,7 +570,9 @@ mod tests {
     }
 
     fn search(service: &IndexService, text: &str) -> Option<Vec<Hit>> {
-        service.search(&search::parse(text), 10, &service.begin_search())
+        service
+            .search(&search::parse(text), 0, 10, &service.begin_search())
+            .map(|page| page.hits)
     }
 
     #[test]

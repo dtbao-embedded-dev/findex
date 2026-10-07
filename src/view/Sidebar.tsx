@@ -8,7 +8,7 @@ type Props = {
   active: string | null;
   /** The drive now active, and why switching failed if it did. */
   onActiveChange: (active: string | null, error: string | null) => void;
-  /** Every tag that can be picked: the colour tags, then custom ones. */
+  /** Every tag that can be picked: the preset tags, then custom ones. */
   tags: TagInfo[];
   /** The tags the search is filtered by, shown as selected. */
   selectedTags: string[];

@@ -85,6 +85,8 @@ describe("wording", () => {
   it("says which drive the search covers", () => {
     expect(searchPlaceholder("C")).toBe("Search C:");
     expect(searchPlaceholder(null)).toBe("Search files and folders");
+    expect(searchPlaceholder("E", "contents")).toBe("Search names and contents on E:");
+    expect(searchPlaceholder(null, "contents")).toBe("Search names and contents");
   });
 
   it("words size, label and method like Explorer", () => {

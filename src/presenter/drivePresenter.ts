@@ -62,7 +62,10 @@ export function activeTitle(drives: Drive[], active: string | null): string {
   return drive ? describeDrive(drive).title : `${active}:`;
 }
 
-export function searchPlaceholder(active: string | null): string {
+export function searchPlaceholder(active: string | null, mode: "name" | "contents" = "name"): string {
+  if (mode === "contents") {
+    return active === null ? "Search names and contents" : `Search names and contents on ${active}:`;
+  }
   return active === null ? "Search files and folders" : `Search ${active}:`;
 }
 

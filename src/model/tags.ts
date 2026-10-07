@@ -5,7 +5,7 @@ export type TagInfo = {
   tag: string;
   /** The colour a preset tag is drawn in, such as "red"; null for custom tags. */
   color: string | null;
-  /** A colour tag that ships with the app and cannot be deleted. */
+  /** A named tag that ships with the app (Working, Doc, …) and cannot be deleted. */
   preset: boolean;
   /** How many folders carry it. */
   folders: number;
@@ -21,7 +21,7 @@ export function removeTag(path: string, tag: string): Promise<string[]> {
   return invoke<string[]>("remove_tag", { path, tag });
 }
 
-/** Every tag that can be picked: the colour presets, then custom tags by name. */
+/** Every tag that can be picked: the presets, then custom tags by name. */
 export function tagCatalog(): Promise<TagInfo[]> {
   return invoke<TagInfo[]>("tag_catalog");
 }

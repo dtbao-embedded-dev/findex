@@ -58,10 +58,10 @@ describe("removeTagFrom", () => {
 });
 
 describe("the tag catalog", () => {
-  const red = { tag: "red", color: "red", preset: true, folders: 1 };
-  const blue = { tag: "blue", color: "blue", preset: true, folders: 0 };
+  const working = { tag: "working", color: "blue", preset: true, folders: 1 };
+  const doc = { tag: "doc", color: "green", preset: true, folders: 0 };
   const custom = (tag: string, folders: number): TagInfo => ({ tag, color: null, preset: false, folders });
-  const all: TagInfo[] = [red, blue, custom("firmware", 1), custom("fw", 2), custom("work", 3)];
+  const all: TagInfo[] = [working, doc, custom("firmware", 1), custom("fw", 2), custom("work", 3)];
 
   it("lists it, or nothing when it cannot be read", async () => {
     expect(await loadTags(async () => all)).toEqual(all);
@@ -69,24 +69,24 @@ describe("the tag catalog", () => {
   });
 
   it("suggests custom tags the folder lacks, matching what is typed", () => {
-    // The colour tags are offered as their own row of dots, not as suggestions.
+    // The preset tags are offered as their own row, not as suggestions.
     expect(suggestTags(all, ["work"], "")).toEqual(["firmware", "fw"]);
     expect(suggestTags(all, [], "#F")).toEqual(["firmware", "fw"]);
     expect(suggestTags(all, ["fw"], "fi")).toEqual(["firmware"]);
-    expect(suggestTags(all, [], "re")).toEqual([]);
+    expect(suggestTags(all, [], "do")).toEqual([]);
   });
 
-  it("names colour tags by their colour and custom tags with a #", () => {
+  it("names preset tags capitalised and custom tags with a #", () => {
     const colors = tagColors(all);
-    expect(colors).toEqual({ red: "red", blue: "blue" });
-    expect(tagLabel("red", colors)).toBe("Red");
+    expect(colors).toEqual({ working: "blue", doc: "green" });
+    expect(tagLabel("working", colors)).toBe("Working");
     expect(tagLabel("fw", colors)).toBe("#fw");
-    expect(tagName("red", colors)).toBe("Red");
+    expect(tagName("doc", colors)).toBe("Doc");
     expect(tagName("fw", colors)).toBe("fw");
   });
 
   it("keeps only the filter tags the catalog still has", () => {
-    expect(keepKnown(["fw", "gone", "red"], all)).toEqual(["fw", "red"]);
+    expect(keepKnown(["fw", "gone", "working"], all)).toEqual(["fw", "working"]);
   });
 
   it("asks before deleting a tag, saying how many folders lose it", () => {
@@ -128,9 +128,9 @@ describe("createTagNamed", () => {
 describe("deleteTagNamed", () => {
   it("returns the catalog left, or the error", async () => {
     expect(await deleteTagNamed("fw", async () => [])).toEqual({ catalog: [], error: null });
-    expect(await deleteTagNamed("red", async () => Promise.reject("a colour tag"))).toEqual({
+    expect(await deleteTagNamed("doc", async () => Promise.reject("a preset tag"))).toEqual({
       catalog: null,
-      error: "a colour tag",
+      error: "a preset tag",
     });
   });
 });

@@ -18,15 +18,33 @@ export type DateChoice =
   | { kind: "year"; year: string }
   | { kind: "range"; from: string; to: string };
 
+/** Where the typed words are looked for: in names, or in names and file contents. */
+export type SearchMode = "name" | "contents";
+
 /** Everything the filter bar holds. */
 export type FilterState = {
   date: DateChoice;
   kind: Kind;
   /** Folders must carry every one of these. */
   tags: string[];
+  /** File types, by extension without the dot; a result of any of them is kept. */
+  exts: string[];
+  /** Not a filter: where the words are looked for. */
+  mode: SearchMode;
 };
 
-export const initialFilters: FilterState = { date: { kind: "any" }, kind: "any", tags: [] };
+export const initialFilters: FilterState = {
+  date: { kind: "any" },
+  kind: "any",
+  tags: [],
+  exts: [],
+  mode: "name",
+};
+
+/** Every filter cleared; the search keeps looking where it did. */
+export function clearFilters(state: FilterState): FilterState {
+  return { ...initialFilters, mode: state.mode };
+}
 
 /** The presets, in the order the date menu lists them. */
 export const DATE_PRESETS: { choice: DateChoice; label: string }[] = [
@@ -166,7 +184,13 @@ export function describeDate(choice: DateChoice): string {
 /** What Rust narrows by, with the date measured from `now`. */
 export function toFilters(state: FilterState, now: Date = new Date()): Filters {
   const span = dateRange(state.date, now);
-  return { kind: state.kind, tags: state.tags, modifiedFrom: span.from, modifiedTo: span.to };
+  return {
+    kind: state.kind,
+    tags: state.tags,
+    exts: state.exts,
+    modifiedFrom: span.from,
+    modifiedTo: span.to,
+  };
 }
 
 /** True when the date choice narrows anything; a custom date still being typed does not. */
@@ -177,7 +201,9 @@ export function narrowsDate(choice: DateChoice): boolean {
 
 /** True once any filter narrows the results. */
 export function isFiltered(state: FilterState): boolean {
-  return state.kind !== "any" || state.tags.length > 0 || narrowsDate(state.date);
+  return (
+    state.kind !== "any" || state.tags.length > 0 || state.exts.length > 0 || narrowsDate(state.date)
+  );
 }
 
 /** The custom date kinds, in the order the date menu's segmented control shows them. */
@@ -204,4 +230,60 @@ export function emptyCustom(kind: "day" | "month" | "year" | "range"): DateChoic
 
 export function toggleTag(tags: string[], tag: string): string[] {
   return tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
+}
+
+/** A set of file types the type menu picks with one press. */
+export type ExtGroup = { label: string; exts: string[] };
+
+/** The type menu's groups, in the order it lists them. */
+export const EXT_GROUPS: ExtGroup[] = [
+  {
+    label: "Code",
+    exts: ["c", "h", "cpp", "hpp", "cc", "cs", "rs", "py", "js", "ts", "tsx", "jsx", "java", "go"],
+  },
+  { label: "Documents", exts: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md"] },
+  { label: "Images", exts: ["png", "jpg", "jpeg", "gif", "bmp", "svg", "webp"] },
+  { label: "Archives", exts: ["zip", "rar", "7z", "tar", "gz"] },
+];
+
+/** Typed types (`.c, h ;CPP`) as stored: no dot, lower case, each once, in order. */
+export function parseExts(text: string): string[] {
+  const exts = text
+    .split(/[\s,;]+/)
+    .map((ext) => ext.replace(/^\.+/, "").toLowerCase())
+    .filter((ext) => ext !== "");
+  return [...new Set(exts)];
+}
+
+/** The types as the field shows them: `.c, .h`. */
+export function formatExts(exts: string[]): string {
+  return exts.map((ext) => `.${ext}`).join(", ");
+}
+
+/** True when every type of `group` is picked. */
+export function groupOn(exts: string[], group: ExtGroup): boolean {
+  return group.exts.every((ext) => exts.includes(ext));
+}
+
+/**
+ * Turns a group off when all of it is picked, otherwise completes it. Types picked
+ * outside the group stay.
+ */
+export function toggleGroup(exts: string[], group: ExtGroup): string[] {
+  return groupOn(exts, group)
+    ? exts.filter((ext) => !group.exts.includes(ext))
+    : [...exts, ...group.exts.filter((ext) => !exts.includes(ext))];
+}
+
+/** The type button's label: the group picked, or the first few types. */
+export function describeExts(exts: string[]): string {
+  if (exts.length === 0) {
+    return "Type";
+  }
+  const group = EXT_GROUPS.find((g) => g.exts.length === exts.length && groupOn(exts, g));
+  if (group) {
+    return group.label;
+  }
+  const shown = formatExts(exts.slice(0, 3));
+  return exts.length > 3 ? `${shown} +${exts.length - 3}` : shown;
 }

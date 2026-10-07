@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
+use crate::model::contents::{self, Batch};
 use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
@@ -14,9 +15,9 @@ use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
 use crate::model::search::Filters;
-use crate::model::settings;
 use crate::model::tags::{self, TagInfo};
 use crate::splash;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Forwards index progress to the frontend as the `index-status` event.
@@ -37,18 +38,6 @@ pub fn get_setting(db: State<'_, Db>, key: &str) -> AppResult<Option<String>> {
 #[tauri::command]
 pub fn set_setting(db: State<'_, Db>, key: &str, value: &str) -> AppResult<()> {
     db.set_setting(key, value)
-}
-
-/// How many results a search shows.
-#[tauri::command]
-pub fn get_results_limit(db: State<'_, Db>) -> AppResult<usize> {
-    settings::results_limit(&db)
-}
-
-/// Saves how many results a search shows; a value out of range is refused.
-#[tauri::command]
-pub fn set_results_limit(db: State<'_, Db>, limit: usize) -> AppResult<usize> {
-    settings::set_results_limit(&db, limit)
 }
 
 #[tauri::command]
@@ -128,20 +117,65 @@ pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
 
 /// Runs off the async runtime: a query is CPU work across every core, and a date
 /// filter waits on the disk. Resolves to null when a newer query replaced this one.
-/// Tags are read from the tags table; the number of results from the settings.
+/// Answers `count` results from rank `offset`; tags are read from the tags table.
 #[tauri::command]
 pub async fn search_names(
     app: AppHandle,
     query: String,
     filters: Option<Filters>,
+    offset: usize,
+    count: usize,
 ) -> AppResult<Option<Answer>> {
     tauri::async_runtime::spawn_blocking(move || {
         let db = app.state::<Db>();
         let index = app.state::<Arc<IndexService>>();
-        find::search_saved(&db, &index, &query, &filters.unwrap_or_default())
+        find::search(
+            &db,
+            &index,
+            &query,
+            &filters.unwrap_or_default(),
+            offset,
+            count,
+        )
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))?
+}
+
+/// Searches names and then file contents, sending each batch of results through
+/// `on_batch` as it is found; resolves once the scan ends or a newer search stopped
+/// it. Off the async runtime: it reads files for as long as the drive takes.
+#[tauri::command]
+pub async fn search_contents(
+    app: AppHandle,
+    query: String,
+    filters: Option<Filters>,
+    on_batch: Channel<Batch>,
+) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<Db>();
+        let index = app.state::<Arc<IndexService>>();
+        contents::scan(
+            &db,
+            &index,
+            &query,
+            &filters.unwrap_or_default(),
+            &|batch| {
+                if let Err(err) = on_batch.send(batch) {
+                    eprintln!("could not send content results: {err}");
+                }
+            },
+        )
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("the content search stopped: {err}")))?
+}
+
+/// Stops the search running in Rust, such as a content scan the user left.
+#[tauri::command]
+pub fn cancel_search(index: State<'_, Arc<IndexService>>) -> AppResult<()> {
+    index.cancel_searches();
+    Ok(())
 }
 
 /// Type, size, date and tags for the results on screen. Off the async runtime: it
@@ -165,7 +199,7 @@ pub fn remove_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<Str
     tags::remove(&db, path, tag)
 }
 
-/// Every tag that can be picked: the colour presets, then custom tags.
+/// Every tag that can be picked: the presets, then custom tags.
 #[tauri::command]
 pub fn tag_catalog(db: State<'_, Db>) -> AppResult<Vec<TagInfo>> {
     tags::catalog(&db)

@@ -58,3 +58,11 @@ export function detailsWindow(first: number, last: number, count: number, chunk 
     last: Math.min(count, Math.ceil(last / chunk) * chunk),
   };
 }
+
+/**
+ * Whether to load the next page: one follows, and the rows drawn reach within `ahead`
+ * rows of the last one loaded, so it arrives before the scroll gets there.
+ */
+export function needsMore(lastDrawn: number, loaded: number, more: boolean, ahead = 100): boolean {
+  return more && loaded > 0 && lastDrawn >= loaded - ahead;
+}

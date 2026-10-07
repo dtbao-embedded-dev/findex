@@ -6,7 +6,7 @@ import {
   deletePrompt,
   deleteTagNamed,
   tagColors,
-  tagLabel,
+  tagName,
 } from "../presenter/tagPresenter";
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
 };
 
 /**
- * The Tags section of the settings: the colour tags, always there, then the user's
+ * The Tags section of the settings: the preset tags, always there, then the user's
  * own tags with a field to make one and a delete button each. Deleting asks first,
  * since it takes the tag off every folder and cannot be undone.
  */
@@ -45,14 +45,17 @@ export function TagSettings({ catalog, onCatalog }: Props) {
       <div className="setting-group">
         <div className="setting-row">
           <div className="setting-text">
-            <span className="setting-label">Colour tags</span>
+            <span className="setting-label">Preset tags</span>
             <p className="setting-hint">Always there, and cannot be deleted.</p>
           </div>
-          <div className="tag-colors is-static" aria-label="Colour tags">
+          <ul className="tag-colors is-static" aria-label="Preset tags">
             {presets.map((t) => (
-              <span key={t.tag} className="tag-dot" data-color={t.color ?? undefined} title={tagLabel(t.tag, colors)} />
+              <li key={t.tag} className="tag-color">
+                <span className="tag-dot" data-color={t.color ?? undefined} aria-hidden="true" />
+                {tagName(t.tag, colors)}
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
         <div className="setting-row is-stacked">
           <div className="setting-text">

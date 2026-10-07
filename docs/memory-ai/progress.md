@@ -12,6 +12,15 @@ updated: 2026-10-07
 
 ## What works
 
+- **Content search, no cap, type filter, named tags (branch
+  `feat/content-search-paging`, 8992a8c..bbf3c93, 2026-10-07):** Enter and
+  double-click open nothing; presets Working, Doc, Important, Todo, Review, Personal,
+  Archive (migration 4); a Type filter (groups + extensions); name results paged
+  without a cap with an exact total; a Name | Contents mode streaming content matches
+  with line and snippet. Checked over CDP on E: (unelevated, debug); an independent
+  review's 4 actionable findings are fixed in 488d425, bbf3c93. Gates: cargo test
+  129 (6 ignored), vitest 140, clippy, fmt, typecheck, build.
+
 - **Redesign, filters, tags, settings (branch `feat/ui-redesign-filters`,
   2a7e9c9..d708739, 2026-10-07):** Finder-style sidebar and Apple-style screens
   (light/dark screenshots); title bar icon + `v0.1.0`; date/kind/tag filters with
@@ -67,10 +76,17 @@ updated: 2026-10-07
      **Medium** (the terminal is not elevated).
 2. **First real update:** install a v0.1.0 build, publish v0.1.1, then check from the
    tray → banner → Restart now → v0.1.1 runs.
-3. Content search (decide between FTS5 and a dedicated engine first).
-4. Opening a result in any chosen app (only Explorer, terminal and Claude exist).
+3. Opening a result in any chosen app (only Explorer, terminal and Claude exist).
+4. Merge `feat/content-search-paging` into `developing` (waiting for the user).
 
 ## Known issues
+
+- **Content search costs** (branch `feat/content-search-paging`): an unfiltered scan
+  of E: reads 472,992 text-type files (minutes on a cold disk); a one-letter content
+  query lists every name match before reading files; content hits are not ranked.
+  PDF/DOCX contents are not found (no text extraction).
+- **Deep name pages** keep `offset+count` candidates per chunk, so memory grows with
+  how far the list was scrolled.
 
 - **Re-scan that fails** (branch `feat/ui-redesign-filters`): the old index stays
   searchable but its journal follower was stopped by the new run, so it is not kept

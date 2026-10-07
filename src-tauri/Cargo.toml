@@ -26,6 +26,7 @@ tauri-plugin-process = "2"
 rusqlite = { version = "0.40", features = ["bundled"] }
 rayon = "1"
 memchr = "2"
+regex = "1"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",

@@ -135,8 +135,9 @@ mod tests {
     }
 
     fn paths(index: VolumeIndex, text: &str) -> Vec<String> {
-        search::run(&[index], &search::parse(text), 10, &|| false)
+        search::run(&[index], &search::parse(text), 0, 10, &|| false)
             .unwrap()
+            .hits
             .into_iter()
             .map(|hit| hit.path)
             .collect()

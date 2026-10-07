@@ -34,8 +34,9 @@
   - **Search as you type:** results appear on every keystroke, with the matched part
     of each name in bold and its folder underneath. An answer that arrives late is
     never allowed to replace a newer one.
-  - **Keyboard:** ↑/↓ move the selection, Enter (or a double click) shows the file in
-    Explorer, and Esc clears the field.
+  - **Keyboard:** ↑/↓ move the selection and Esc clears the field. Enter and a double
+    click open nothing, so a stray key press never launches a window; every action on
+    a result is in its right-click menu.
   - **Status bar:** shows indexing progress per drive, then how many items can be
     searched, plus why a drive fell back to a folder scan.
   - **Measured:** on 6.3 million names in a development build, a typical query
@@ -93,49 +94,58 @@
     lower case. Tags are saved in the app's database, keyed by the folder's path, so a
     folder that is renamed or moved loses its tags.
 - Tags come in two kinds, as in Finder:
-  - **Colour tags:** Red, Orange, Yellow, Green, Blue, Purple and Gray are always
-    there, drawn as coloured dots in the sidebar, the filters, the tag editor and on
-    results, and cannot be deleted. The tag editor offers them as a row of dots to
-    toggle.
+  - **Preset tags:** Working, Doc, Important, Todo, Review, Personal and Archive are
+    always there, each drawn with its own coloured dot beside its name in the sidebar,
+    the filters, the tag editor and on results, and cannot be deleted. They are named
+    for what a folder is, not for a colour, so a tag says why it was set. The tag editor
+    offers them as a row of pills to toggle.
   - **Your own tags:** made in Settings → Tags, or by typing a new name in the tag
     editor. Settings lists them with their folder counts; deleting one asks first and
     takes it off every folder. A tag that already exists is refused rather than
     merged.
-  - **Upgrading:** tags already on folders become your own tags; a folder tagged
-    `red` before keeps it, now as the Red colour tag.
+  - **Upgrading:** tags already on folders become your own tags. A folder on one of
+    the earlier colour tags moves to the preset of the same colour (Blue → Working,
+    Green → Doc, Red → Important, Orange → Todo, Yellow → Review, Purple → Personal,
+    Gray → Archive); one of your own tags already named like a preset becomes that
+    preset, keeping its folders.
 - A filter bar under the search field narrows the results. Every change searches
   again at once.
   - **Date:** when a result last changed: Today, Yesterday, Last 7 days, Last 30
     days, This month, This year, or a custom day, month, year or range (either end
     may be left open). Days follow your local time.
   - **Kind:** All, Files or Folders, overriding a typed `type:`.
+  - **Type:** file types to keep. Pick a group (Code, Documents, Images, Archives) or
+    type extensions such as `.c, .h`; a typed `ext:` still works and adds to them.
+    Searching `code` with `.c` lists only C files whose name holds "code"; a type
+    alone lists every file of that type.
   - **Tags:** folders carrying every tag picked, from the filter's menu or the
     sidebar; a tag chip on a result turns its filter on or off.
   - **How dates are read:** the index holds names only, so dates are read from the
-    disk for the best name matches, up to 20,000 to 100,000 of them depending on the
-    results limit. When that was not enough, the line above the results says to type
-    more of the name. A one-letter search checked against the last day took under a
+    disk for the best name matches, 20,000 to 100,000 of them depending on how far
+    the list was scrolled. When that was not enough, the line above the results says
+    to type more of the name. A one-letter search checked against the last day took under a
     second on 1.2 million names.
   - **Without a name:** a date or kind alone lists nothing, since there is no name to
-    look for; a tag alone lists the folders carrying it.
+    look for; a tag alone lists the folders carrying it, and a type alone every file of
+    that type.
   - **Esc:** the first Esc clears the name, a second one clears the filters.
   - **While files change:** a search with a date filter is not re-run on its own as
     files change, since each run reads thousands of dates from the disk; typing or
     changing a filter runs it again. Custom dates before 1970 are not accepted.
-- Settings (the gear in the title bar) open as a sheet over the window. The first
-  setting is **Results per search**, from 200 (the default) to 10,000, typed, slid or
-  picked from 200 / 1,000 / 5,000 / 10,000. It applies to the search on screen at
-  once and is kept across restarts.
-  - **Checked twice:** a value out of range is refused with a note and the saved one
-    kept; Rust checks it again, and falls back to 200 if a stored value is ever
-    out of range.
-  - **Cost:** more results take longer. In a development build a one-letter search
-    on 1.2 million names took about 0.4 s for 10,000 results against 0.07 s for 200.
+- Settings (the gear in the title bar) open as a sheet over the window, holding the
+  tags.
+- A search has no cap on results. The best 500 show at once, and the next 500 load
+  as the list scrolls near the end, until every match is listed. The line above the
+  results counts every match, not only the rows loaded ("48,213 results"); with a
+  date filter, where the count is only known once every date was read, it says
+  "500+ results" until then. Each page ranks the drive again, so pages follow one
+  order; a file that appears between two pages is never listed twice.
 - The result list renders only the rows in view and reads type, size and date only
-  for them, so 10,000 results scroll as smoothly as 200. ↑ from the first result
-  still jumps to the last, and the menu key opens its actions there.
+  for them, so a list of a hundred thousand rows scrolls as smoothly as one of 200.
+  ↑ from the first result still jumps to the last loaded, and the menu key opens its
+  actions there.
 - The line above the results shows how much memory the drive's name index holds,
-  beside the search time: "Top 200 results · 18 ms · 133 MB RAM". It counts what the
+  beside the search time: "48,213 results · 18 ms · 133 MB RAM". It counts what the
   index's containers hold, so it is lower than the app's working set in Task Manager,
   which also holds the window and the rest of the app (133 MB against 191 MB for
   1.2 million names here).
@@ -154,6 +164,33 @@
     server (offline, or no release published yet), shows nothing.
   - **Before installing:** the drive index changed by live updates is saved first,
     since the installer closes the app without the usual quit.
+- Search inside files. **Name | Contents** at the start of the filter bar picks
+  where the words are looked for, as in Finder. A content search lists the files
+  whose name matches first, ranked, then every file holding all the typed words, each
+  with the line number and the text of the first matching line, the words in bold
+  (the folder shows on hover). Results arrive while the drive is still being read:
+  the line above them says "Searching contents… 37 results · 1,204 of 52,310 files
+  read", then "37 results · 52,310 files read · 4.2 s".
+  - **Typing:** the search starts once typing pauses for a quarter of a second, and
+    a new search stops the old one; its results never come back. Going back to Name
+    or clearing the field stops it too, so the drive is not read on in the
+    background. A content search is not re-run on its own as files change.
+  - **Progress:** files skipped (too large, binary, locked, outside the date range)
+    count as looked at, so the count reaches the total.
+  - **Measured on E: (development build, unelevated):** 49,585 C files read in 37 s
+    the first time and 3.3 s once the disk cache held them; the first of 617 matches
+    showed after a second.
+  - **What is read:** files of a text type (code, text, markup, configuration, logs,
+    CSV, KiCad design files and the like), or only the types picked in the Type
+    filter. Files over 8 MB and files that look binary are skipped. Matching ignores
+    case in any script ("ảnh" finds "Ảnh").
+  - **Filters:** a tag keeps the files inside the folders carrying it; a date keeps
+    the files changed in that range.
+  - **No index:** nothing is stored, so a search always reads the files as they are
+    now. Reading a whole drive takes as long as the disk needs; PDF and Word files are
+    not text, so their contents are not found.
+  - **Rights:** a release build runs as administrator, so it can read, and list
+    lines from, files your own account cannot open.
 
 ### Changed
 
@@ -191,6 +228,10 @@
   "Access is denied (os error 5)".
 
 ### Fixed
+
+- In dark mode the chosen segment of a segmented control (Name | Contents, All |
+  Files | Folders) was darker than its track and hard to see; it is now lifted in a
+  lighter grey, as macOS draws it.
 
 ### Removed
 

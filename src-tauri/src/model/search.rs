@@ -2,8 +2,8 @@
 //!
 //! A query's longest term is searched with one SIMD substring pass over each volume's
 //! lowercase arena, split into chunks that run in parallel. Each hit is mapped back to
-//! its node, checked against the other terms and filters, and offered to a bounded
-//! per-chunk top-K. Paths are rebuilt only for the final `limit` winners, so the cost
+//! its node, checked against the other terms and filters, counted, and offered to a
+//! bounded per-chunk top-K. Paths are rebuilt only for the page asked for, so the cost
 //! of a query grows with the matches, not with the size of the drive.
 
 use std::cmp::Ordering;
@@ -17,8 +17,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::dated;
 use crate::model::index::store::{VolumeIndex, SEPARATOR};
-
-pub const DEFAULT_LIMIT: usize = 200;
 
 /// Bytes of arena per parallel task; large enough to amortize the task, small enough
 /// to keep every core busy on one drive.
@@ -46,6 +44,8 @@ pub enum Kind {
 pub struct Filters {
     pub kind: Kind,
     pub tags: Vec<String>,
+    /// File types to keep, by extension (`c`, `.h`); any of them matches.
+    pub exts: Vec<String>,
     /// Last changed at or after, in milliseconds since the Unix epoch.
     pub modified_from: Option<i64>,
     /// Last changed before, in milliseconds since the Unix epoch.
@@ -79,12 +79,33 @@ impl Query {
         &self.tags
     }
 
-    /// Adds the filter bar's choices: its kind replaces a typed `type:`, and its tags
-    /// join the typed `tag:` ones.
+    /// The words every result must hold, lowercased.
+    pub fn terms(&self) -> &[String] {
+        &self.terms
+    }
+
+    /// The file types kept, without the dot; empty keeps every type.
+    pub fn exts(&self) -> &[String] {
+        &self.exts
+    }
+
+    pub fn kind(&self) -> Kind {
+        self.kind
+    }
+
+    /// Adds the filter bar's choices: its kind replaces a typed `type:`, its tags join
+    /// the typed `tag:` ones, and its file types join the typed `ext:` ones.
     pub fn narrow(&mut self, filters: &Filters) {
         if filters.kind != Kind::Any {
             self.kind = filters.kind;
         }
+        self.exts.extend(
+            filters
+                .exts
+                .iter()
+                .map(|ext| ext.trim().trim_start_matches('.').to_lowercase())
+                .filter(|ext| !ext.is_empty()),
+        );
         self.tags.extend(
             filters
                 .tags
@@ -157,21 +178,36 @@ fn kind_of(word: &str) -> Option<Kind> {
     }
 }
 
-/// Runs `query` over every volume and returns the best `limit` hits, best first.
-/// Returns `None` as soon as `cancelled` reports that a newer query replaced this one.
+/// One page of ranked results, and how many names matched in all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Page {
+    pub hits: Vec<Hit>,
+    pub total: usize,
+}
+
+/// Runs `query` over every volume and returns `count` hits starting at rank `offset`,
+/// best first, with the number of every match. Each page ranks the whole drive again,
+/// so the pages of one query follow one ranking. Returns `None` as soon as `cancelled`
+/// reports that a newer query replaced this one.
 pub fn run(
     volumes: &[VolumeIndex],
     query: &Query,
-    limit: usize,
+    offset: usize,
+    count: usize,
     cancelled: &(dyn Fn() -> bool + Sync),
-) -> Option<Vec<Hit>> {
-    if query.is_empty() || limit == 0 {
-        return Some(Vec::new());
+) -> Option<Page> {
+    if query.is_empty() {
+        return Some(Page {
+            hits: Vec::new(),
+            total: 0,
+        });
     }
+    let limit = offset.saturating_add(count);
     let matcher = Matcher::new(query);
     let mut best = Vec::new();
+    let mut total = 0;
     for (vol, index) in volumes.iter().enumerate() {
-        let parts: Vec<Option<Vec<Candidate>>> = match &matcher.primary {
+        let parts: Vec<Option<Part>> = match &matcher.primary {
             Some(primary) => chunks(index.lower_arena(), CHUNK_BYTES)
                 .into_par_iter()
                 .map(|range| scan_arena(vol, index, &matcher, primary, range, limit, cancelled))
@@ -189,23 +225,32 @@ pub fn run(
                 .collect(),
         };
         for part in parts {
-            best.extend(part?);
+            let part = part?;
+            total += part.matched;
+            best.extend(part.top);
         }
     }
     best.sort_unstable();
     best.truncate(limit);
-    Some(
-        best.into_iter()
-            .map(|c| {
-                let index = &volumes[c.vol];
-                Hit {
-                    name: index.name(c.id).to_owned(),
-                    path: index.path(c.id),
-                    is_dir: c.is_dir,
-                }
-            })
-            .collect(),
-    )
+    let hits = best
+        .into_iter()
+        .skip(offset)
+        .map(|c| {
+            let index = &volumes[c.vol];
+            Hit {
+                name: index.name(c.id).to_owned(),
+                path: index.path(c.id),
+                is_dir: c.is_dir,
+            }
+        })
+        .collect();
+    Some(Page { hits, total })
+}
+
+/// What one parallel task found: its best candidates and how many names matched.
+struct Part<'a> {
+    top: Vec<Candidate<'a>>,
+    matched: usize,
 }
 
 /// The compiled form of a query: the term searched across the arena, and the checks
@@ -287,12 +332,13 @@ fn scan_arena<'a>(
     range: Range<usize>,
     limit: usize,
     cancelled: &(dyn Fn() -> bool + Sync),
-) -> Option<Vec<Candidate<'a>>> {
+) -> Option<Part<'a>> {
     if cancelled() {
         return None;
     }
     let hay = index.lower_arena();
     let mut top = TopK::new(limit);
+    let mut matched = 0;
     let mut pos = range.start;
     let mut seen = 0_u32;
     while let Some(found) = primary.find(&hay[pos..range.end]) {
@@ -301,6 +347,7 @@ fn scan_arena<'a>(
             let lower = index.lower_name(id);
             let is_dir = index.is_dir(id);
             if let Some(tier) = matcher.check(lower, is_dir) {
+                matched += 1;
                 top.offer(Candidate::new(tier, lower, is_dir, vol, id));
             }
         }
@@ -311,7 +358,10 @@ fn scan_arena<'a>(
             return None;
         }
     }
-    Some(top.into_vec())
+    Some(Part {
+        top: top.into_vec(),
+        matched,
+    })
 }
 
 fn scan_nodes<'a>(
@@ -321,19 +371,24 @@ fn scan_nodes<'a>(
     ids: Range<u32>,
     limit: usize,
     cancelled: &(dyn Fn() -> bool + Sync),
-) -> Option<Vec<Candidate<'a>>> {
+) -> Option<Part<'a>> {
     if cancelled() {
         return None;
     }
     let mut top = TopK::new(limit);
+    let mut matched = 0;
     for id in ids.filter(|&id| index.is_live(id)) {
         let lower = index.lower_name(id);
         let is_dir = index.is_dir(id);
         if let Some(tier) = matcher.check(lower, is_dir) {
+            matched += 1;
             top.offer(Candidate::new(tier, lower, is_dir, vol, id));
         }
     }
-    Some(top.into_vec())
+    Some(Part {
+        top: top.into_vec(),
+        matched,
+    })
 }
 
 /// Splits the arena into ranges of about `size` bytes that end on a separator, so no
@@ -446,9 +501,12 @@ mod tests {
         index
     }
 
+    const PAGE: usize = 200;
+
     fn names(volumes: &[VolumeIndex], text: &str) -> Vec<String> {
-        run(volumes, &parse(text), DEFAULT_LIMIT, &|| false)
+        run(volumes, &parse(text), 0, PAGE, &|| false)
             .unwrap()
+            .hits
             .into_iter()
             .map(|hit| hit.name)
             .collect()
@@ -512,13 +570,45 @@ mod tests {
     }
 
     #[test]
+    fn the_type_filter_keeps_only_its_extensions() {
+        let volumes = [index(&[
+            (10, ROOT, "code.c", false),
+            (11, ROOT, "code.H", false),
+            (12, ROOT, "code.txt", false),
+            (13, ROOT, "code.pdf", false),
+            (14, ROOT, "code", true),
+        ])];
+        let by_type = |text: &str, exts: &[&str]| {
+            let mut query = parse(text);
+            query.narrow(&Filters {
+                exts: exts.iter().map(|e| (*e).to_owned()).collect(),
+                ..Filters::default()
+            });
+            let mut names: Vec<String> = run(&volumes, &query, 0, PAGE, &|| false)
+                .unwrap()
+                .hits
+                .into_iter()
+                .map(|hit| hit.name)
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(by_type("code", &["c", ".H", " "]), ["code.H", "code.c"]);
+        // A typed ext: and the filter's types are both accepted.
+        assert_eq!(by_type("code ext:pdf", &["c"]), ["code.c", "code.pdf"]);
+        // The filter alone lists every name of that type.
+        assert_eq!(by_type("", &["txt"]), ["code.txt"]);
+    }
+
+    #[test]
     fn filters_arrive_from_the_frontend_in_camel_case() {
         let filters: Filters = serde_json::from_str(
-            r#"{"kind":"file","tags":["work"],"modifiedFrom":10,"modifiedTo":null}"#,
+            r#"{"kind":"file","tags":["work"],"exts":["c"],"modifiedFrom":10,"modifiedTo":null}"#,
         )
         .unwrap();
         assert_eq!(filters.kind, Kind::File);
         assert_eq!(filters.tags, ["work"]);
+        assert_eq!(filters.exts, ["c"]);
         assert_eq!(filters.modified(), dated::Range::new(Some(10), None));
         let empty: Filters = serde_json::from_str("{}").unwrap();
         assert_eq!(empty, Filters::default());
@@ -571,7 +661,9 @@ mod tests {
         let c = index(&[(10, ROOT, "Users", true), (11, 10, "plan.md", false)]);
         let mut d = VolumeIndex::new("D:\\", ROOT);
         d.upsert(20, ROOT, "plan.md", false).unwrap();
-        let hits = run(&[c, d], &parse("plan"), DEFAULT_LIMIT, &|| false).unwrap();
+        let hits = run(&[c, d], &parse("plan"), 0, PAGE, &|| false)
+            .unwrap()
+            .hits;
         let paths: Vec<_> = hits.iter().map(|hit| hit.path.as_str()).collect();
         assert_eq!(paths, ["C:\\Users\\plan.md", "D:\\plan.md"]);
     }
@@ -584,18 +676,48 @@ mod tests {
         assert!(names(&[volume], "draft").is_empty());
     }
 
-    #[test]
-    fn keeps_only_the_best_limit() {
-        let entries: Vec<_> = (0..500_u64)
-            .map(|i| (100 + i, ROOT, format!("log{i:03}.txt"), false))
-            .collect();
+    fn logs(count: u64) -> VolumeIndex {
         let mut volume = VolumeIndex::new("C:\\", ROOT);
-        for (frn, parent, name, is_dir) in &entries {
-            volume.upsert(*frn, *parent, name, *is_dir).unwrap();
+        for i in 0..count {
+            volume
+                .upsert(100 + i, ROOT, &format!("log{i:03}.txt"), false)
+                .unwrap();
         }
-        let hits = run(&[volume], &parse("log"), 3, &|| false).unwrap();
-        let got: Vec<_> = hits.iter().map(|hit| hit.name.as_str()).collect();
+        volume
+    }
+
+    #[test]
+    fn keeps_only_the_best_page_and_counts_every_match() {
+        let page = run(&[logs(500)], &parse("log"), 0, 3, &|| false).unwrap();
+        let got: Vec<_> = page.hits.iter().map(|hit| hit.name.as_str()).collect();
         assert_eq!(got, ["log000.txt", "log001.txt", "log002.txt"]);
+        assert_eq!(page.total, 500);
+    }
+
+    #[test]
+    fn pages_follow_one_ranking_until_the_matches_run_out() {
+        let volumes = [logs(500)];
+        let query = parse("log");
+        let whole = run(&volumes, &query, 0, 500, &|| false).unwrap().hits;
+        let mut paged = Vec::new();
+        for offset in [0, 200, 400] {
+            let page = run(&volumes, &query, offset, 200, &|| false).unwrap();
+            assert_eq!(page.total, 500);
+            paged.extend(page.hits);
+        }
+        assert_eq!(paged.len(), 500);
+        assert_eq!(paged, whole);
+        // Past the end there is nothing more, and the count still holds.
+        let after = run(&volumes, &query, 500, 200, &|| false).unwrap();
+        assert!(after.hits.is_empty());
+        assert_eq!(after.total, 500);
+        // A filter-only query counts too.
+        assert_eq!(
+            run(&volumes, &parse("ext:txt"), 0, 10, &|| false)
+                .unwrap()
+                .total,
+            500
+        );
     }
 
     #[test]
@@ -609,7 +731,7 @@ mod tests {
     fn a_cancelled_query_returns_none() {
         let volumes = [index(&[(10, ROOT, "a.txt", false)])];
         let stop = AtomicBool::new(true);
-        assert!(run(&volumes, &parse("a"), 10, &|| stop.load(Atomic::Relaxed)).is_none());
+        assert!(run(&volumes, &parse("a"), 0, 10, &|| stop.load(Atomic::Relaxed)).is_none());
     }
 
     #[test]
@@ -696,7 +818,7 @@ mod tests {
             let mut times: Vec<f64> = (0..20)
                 .map(|_| {
                     let start = Instant::now();
-                    let hits = run(&volumes, &query, DEFAULT_LIMIT, &|| false).unwrap();
+                    let hits = run(&volumes, &query, 0, PAGE, &|| false).unwrap();
                     std::hint::black_box(hits);
                     start.elapsed().as_secs_f64() * 1000.0
                 })

@@ -11,12 +11,18 @@ updated: 2026-10-07
 
 ## Current focus
 
-Branch `feat/ui-redesign-filters` (from `developing`) is complete and verified
-unelevated: redesign, filters, tag catalog, settings, re-scan, index RAM. Merge into
-`developing` and any push are waiting for the user.
+Branch `feat/content-search-paging` (from `developing` 39d47cb) is complete and
+verified unelevated: Enter/double-click open nothing, named preset tags, Type filter,
+uncapped paged name results, streamed Contents search. Merge into `developing` and
+any push are waiting for the user. (`feat/ui-redesign-filters` was merged into
+`developing` earlier.)
 
 ## Recent changes
 
+- **2026-10-07, fourth run (`feat/content-search-paging`):** 8992a8c Enter/dblclick;
+  6de5172 named presets (migration 4); f1cf5bb Type filter; d30ce23 paging, no cap,
+  limit setting removed; 8c870b6 content scanner; 3b9a520 dark segment fix; 9fec65f
+  Contents mode; review fixes 488d425, bbf3c93.
 - **2026-10-07, third run (`feat/ui-redesign-filters`):** 2a7e9c9 sidebar redesign;
   b69578b title bar version; dcf89ac filters; aca19fa results limit + virtual list;
   555cd11 tag catalog (migration 3); 6129b25 re-scan; d376f72 index RAM; review fixes
@@ -44,7 +50,12 @@ unelevated: redesign, filters, tag catalog, settings, re-scan, index RAM. Merge 
   2026-10-07).
 - **Date filter:** dates are read from the disk for the best name matches; the index
   stays names-only (user, 2026-10-07).
-- **Preset tags:** Finder's seven colours (user, 2026-10-07).
+- **Preset tags:** named, each with a colour: Working, Doc, Important, Todo, Review,
+  Personal, Archive (user, 2026-10-07; replaced Finder's seven colours).
+- **Enter / double-click:** do nothing (user, 2026-10-07).
+- **Results:** no cap; names paged as the list scrolls, contents streamed (user,
+  2026-10-07). The results-limit setting is gone.
+- **Content search:** direct scan, streamed, no index (user, 2026-10-07).
 - **RAM shown:** the index's own memory, not the process working set (user,
   2026-10-07).
 - **One drive at a time** (user, 2026-10-07): the old drive leaves memory; its `.fxi`
