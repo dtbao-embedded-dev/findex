@@ -21,11 +21,19 @@ use windows_sys::Win32::System::Ioctl::{
     FSCTL_ENUM_USN_DATA, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, MFT_ENUM_DATA_V1,
     READ_USN_JOURNAL_DATA_V1, USN_JOURNAL_DATA_V0,
 };
-use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows_sys::Win32::System::Threading::{
+    CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess,
+    InitializeProcThreadAttributeList, OpenProcess, OpenProcessToken, UpdateProcThreadAttribute,
+    CREATE_NEW_CONSOLE, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
+    PROCESS_CREATE_PROCESS, PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
+    STARTUPINFOEXW,
+};
 use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOVABLE};
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::UI::Shell::ShellExecuteW;
-use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetShellWindow, GetWindowThreadProcessId, SW_SHOWNORMAL,
+};
 
 /// A mounted local volume, as Windows reports it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -405,6 +413,134 @@ pub fn run_elevated(exe: &std::path::Path, args: &str) -> bool {
     result as isize > 32
 }
 
+/// A process or thread handle, closed on drop.
+struct Owned(HANDLE);
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        // SAFETY: the handle came from a successful Win32 call and is closed once.
+        unsafe { CloseHandle(self.0) };
+    }
+}
+
+/// An initialised attribute list, deleted on drop; the buffer behind it must outlive it.
+struct AttributeList(LPPROC_THREAD_ATTRIBUTE_LIST);
+
+impl Drop for AttributeList {
+    fn drop(&mut self) {
+        // SAFETY: the list was initialised by InitializeProcThreadAttributeList and is
+        // deleted once, before its buffer is freed.
+        unsafe { DeleteProcThreadAttributeList(self.0) };
+    }
+}
+
+/// Starts `command_line` in a new console, working in `cwd`. With `as_shell_user`,
+/// Explorer becomes its parent, and a process takes its parent's token: it then
+/// runs with the signed-in user's normal rights even when Findex is elevated. That
+/// fails when Explorer is not running.
+pub fn create_process(
+    command_line: &str,
+    cwd: &std::path::Path,
+    as_shell_user: bool,
+) -> io::Result<()> {
+    let mut parent: Option<Owned> = None;
+    let mut buffer: Vec<u64> = Vec::new();
+    let mut list: Option<AttributeList> = None;
+    if as_shell_user {
+        // SAFETY: takes no arguments; a null window means no shell is running.
+        let shell = unsafe { GetShellWindow() };
+        if shell.is_null() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Explorer is not running",
+            ));
+        }
+        let mut pid = 0_u32;
+        // SAFETY: `shell` is a window handle just returned; `pid` is a live out-pointer.
+        unsafe { GetWindowThreadProcessId(shell, &mut pid) };
+        if pid == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: a plain call; the null failure value is checked below.
+        let handle = unsafe { OpenProcess(PROCESS_CREATE_PROCESS, 0, pid) };
+        if handle.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+        let parent = parent.insert(Owned(handle));
+
+        let mut size = 0_usize;
+        // SAFETY: a null list asks only for the size; this call fails by design.
+        unsafe { InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut size) };
+        // u64 words keep the list 8-byte aligned.
+        buffer.resize(size.div_ceil(8), 0);
+        let raw: LPPROC_THREAD_ATTRIBUTE_LIST = buffer.as_mut_ptr().cast();
+        // SAFETY: `buffer` holds at least `size` bytes and is not touched again until
+        // the list is deleted, which happens first because `list` drops before it.
+        if unsafe { InitializeProcThreadAttributeList(raw, 1, 0, &mut size) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        list = Some(AttributeList(raw));
+        // SAFETY: the value points at the parent handle, which stays open, unmoved,
+        // until after CreateProcessW below has read it.
+        let ok = unsafe {
+            UpdateProcThreadAttribute(
+                raw,
+                0,
+                PROC_THREAD_ATTRIBUTE_PARENT_PROCESS as usize,
+                (&parent.0 as *const HANDLE).cast::<c_void>(),
+                std::mem::size_of::<HANDLE>(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            )
+        };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+
+    // SAFETY: both are plain C structs whose all-zero value is valid (null pointers).
+    let mut startup: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
+    let mut process: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+    let mut flags = CREATE_NEW_CONSOLE;
+    match &list {
+        Some(list) => {
+            startup.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
+            startup.lpAttributeList = list.0;
+            flags |= EXTENDED_STARTUPINFO_PRESENT;
+        }
+        None => startup.StartupInfo.cb = std::mem::size_of_val(&startup.StartupInfo) as u32,
+    }
+    // CreateProcessW may write into the command line, so it gets its own buffer.
+    let mut command = wide(command_line);
+    let dir = wide(&cwd.to_string_lossy());
+    // SAFETY: the strings are NUL-terminated and outlive the call; the startup info
+    // is a STARTUPINFOEXW whenever EXTENDED_STARTUPINFO_PRESENT is set, and its `cb`
+    // says which; the attribute list and parent handle are alive until after it.
+    let ok = unsafe {
+        CreateProcessW(
+            std::ptr::null(),
+            command.as_mut_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0,
+            flags,
+            std::ptr::null(),
+            dir.as_ptr(),
+            (&startup as *const STARTUPINFOEXW).cast(),
+            &mut process,
+        )
+    };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    drop(Owned(process.hProcess));
+    drop(Owned(process.hThread));
+    drop(list);
+    drop(buffer);
+    drop(parent);
+    Ok(())
+}
+
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }
@@ -417,6 +553,24 @@ fn from_wide(buffer: &[u16]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Needs a desktop session with Explorer running, and flashes a console window.
+    #[test]
+    #[ignore]
+    fn a_process_started_as_the_shell_user_works_in_the_given_folder() {
+        let dir = std::env::temp_dir().join(format!("findex spawn;{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        create_process("cmd.exe /c cd > where.txt", &dir, true).unwrap();
+        let written = dir.join("where.txt");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !written.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let text = std::fs::read_to_string(&written).unwrap();
+        assert_eq!(text.trim(), dir.display().to_string());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn lists_the_system_drive_with_its_filesystem_and_size() {

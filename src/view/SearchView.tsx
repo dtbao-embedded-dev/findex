@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import {
   describeResults,
@@ -11,7 +11,16 @@ import {
   revealHit,
 } from "../presenter/searchPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
+import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
+import { ContextMenu } from "./ContextMenu";
 import { DrivePicker } from "./DrivePicker";
+import { Toast } from "./Toast";
+
+/** The open right-click menu: where it was asked for, and for which result. */
+type OpenMenu = { at: { x: number; y: number }; index: number };
+
+/** A short message over the status bar; `id` restarts its timer when it repeats. */
+type Notice = { text: string; tone: "info" | "error"; id: number };
 
 type Props = {
   /** How many names are indexed, for the empty state. */
@@ -24,12 +33,33 @@ type Props = {
 /**
  * The search screen: one field, results as you type, keyboard first. ↑/↓ move the
  * selection, Enter (or a double click) shows the result in Explorer, Esc clears.
+ * Right-click, the menu key or Shift+F10 opens the actions for a result.
  */
 export function SearchView({ total, active, onActiveChange }: Props) {
   const [state, setState] = useState(initialSearch);
   const search = useMemo(() => latestOnly(), []);
   const field = useRef<HTMLInputElement>(null);
   const rows = useRef<(HTMLLIElement | null)[]>([]);
+  const [menu, setMenu] = useState<OpenMenu | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  // Set when the keyboard opened the menu, so the field's own menu stays shut.
+  const menuByKey = useRef(false);
+
+  const show = (text: string, tone: Notice["tone"]) =>
+    setNotice((n) => ({ text, tone, id: (n?.id ?? 0) + 1 }));
+
+  useEffect(() => {
+    if (notice === null) {
+      return;
+    }
+    const timer = setTimeout(() => setNotice(null), notice.tone === "error" ? 4000 : 1800);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const closeMenu = useCallback(() => {
+    setMenu(null);
+    field.current?.focus();
+  }, []);
 
   // Coming back from the tray or another window, typing goes straight to the field.
   useEffect(() => {
@@ -80,7 +110,35 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     }
   };
 
+  const openMenuAtSelection = () => {
+    const row = rows.current[state.selected];
+    if (row && state.hits[state.selected]) {
+      const box = row.getBoundingClientRect();
+      setMenu({ at: { x: box.left + 40, y: box.bottom }, index: state.selected });
+    }
+  };
+
+  const pick = (action: MenuAction) => {
+    const hit = menu ? state.hits[menu.index] : undefined;
+    closeMenu();
+    if (hit) {
+      void runAction(action, hit).then((result) => {
+        if (result.error !== null) {
+          show(result.error, "error");
+        } else if (result.notice !== null) {
+          show(result.notice, "info");
+        }
+      });
+    }
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      event.preventDefault();
+      menuByKey.current = true;
+      openMenuAtSelection();
+      return;
+    }
     const step = { ArrowDown: 1, ArrowUp: -1 }[event.key as "ArrowDown" | "ArrowUp"];
     if (step !== undefined) {
       event.preventDefault();
@@ -101,7 +159,9 @@ export function SearchView({ total, active, onActiveChange }: Props) {
           active={active}
           onChange={(letter, error) => {
             onActiveChange(letter);
-            setState((s) => ({ ...s, error }));
+            if (error !== null) {
+              show(error, "error");
+            }
             field.current?.focus();
           }}
         />
@@ -119,6 +179,12 @@ export function SearchView({ total, active, onActiveChange }: Props) {
             value={state.query}
             onChange={(event) => run(event.target.value)}
             onKeyDown={onKeyDown}
+            onContextMenu={(event) => {
+              if (menuByKey.current) {
+                event.preventDefault();
+                menuByKey.current = false;
+              }
+            }}
           />
         </label>
       </div>
@@ -158,6 +224,11 @@ export function SearchView({ total, active, onActiveChange }: Props) {
                   className={index === state.selected ? "result is-selected" : "result"}
                   onMouseDown={() => setState((s) => ({ ...s, selected: index }))}
                   onDoubleClick={() => reveal(index)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setState((s) => ({ ...s, selected: index }));
+                    setMenu({ at: { x: event.clientX, y: event.clientY }, index });
+                  }}
                 >
                   <KindGlyph folder={hit.isDir} />
                   <span className="result-text">
@@ -174,6 +245,16 @@ export function SearchView({ total, active, onActiveChange }: Props) {
           </>
         )}
       </div>
+
+      {menu !== null && state.hits[menu.index] && (
+        <ContextMenu
+          at={menu.at}
+          items={menuFor(state.hits[menu.index]!)}
+          onPick={pick}
+          onClose={closeMenu}
+        />
+      )}
+      {notice !== null && <Toast key={notice.id} text={notice.text} tone={notice.tone} />}
     </div>
   );
 }

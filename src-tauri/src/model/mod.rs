@@ -5,6 +5,7 @@ pub mod db;
 pub mod drives;
 pub mod elevation;
 pub mod index;
+pub mod launch;
 pub mod reveal;
 pub mod search;
 pub mod win32;

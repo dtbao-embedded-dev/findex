@@ -9,6 +9,7 @@ use crate::model::about::{self, About};
 use crate::model::db::Db;
 use crate::model::drives::{self, Drive};
 use crate::model::index::service::{Emit, IndexService, Status};
+use crate::model::launch;
 use crate::model::reveal;
 use crate::model::search::{Hit, DEFAULT_LIMIT};
 use crate::splash;
@@ -105,4 +106,19 @@ pub async fn search_names(
 #[tauri::command]
 pub fn reveal_path(path: &str) -> AppResult<()> {
     reveal::reveal(path)
+}
+
+#[tauri::command]
+pub fn open_folder(path: &str) -> AppResult<()> {
+    launch::open_folder(path)
+}
+
+#[tauri::command]
+pub fn open_terminal(path: &str) -> AppResult<()> {
+    launch::open_terminal(path)
+}
+
+#[tauri::command]
+pub fn open_claude(path: &str) -> AppResult<()> {
+    launch::open_claude(path)
 }

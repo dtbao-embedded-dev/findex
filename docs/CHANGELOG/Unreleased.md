@@ -61,6 +61,19 @@
   keeps the selected file selected.
 - Searches no longer stall while a drive is being folder-scanned. The scan now runs on
   its own threads, so it no longer competes with search for the shared pool.
+- Right-clicking a result opens its actions; the menu key or Shift+F10 opens them for
+  the selected result, and Esc closes them.
+  - **Folders:** Open with Claude (Claude Code, `claude`, in a terminal at the folder),
+    Open folder (File Explorer), Open in Terminal (Windows Terminal, or PowerShell
+    without it), Copy path and Copy name.
+  - **Files:** Show in Explorer, Copy path and Copy name.
+  - **Rights:** terminals and Claude start with your normal rights, not the
+    administrator rights Findex runs with, so a tool opened from a search cannot
+    change the system by surprise. If that is not possible, they are not started.
+  - **Folder names:** the folder becomes the terminal's working directory instead of
+    an argument, so a name with spaces or `;` opens the right place.
+  - A copy is confirmed by a short note above the status bar; a failure (for example
+    `claude` not found on PATH) is shown there in red.
 
 ### Changed
 

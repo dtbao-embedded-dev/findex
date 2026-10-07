@@ -367,6 +367,7 @@ button:focus-visible {
 
 /* Search: one large field, results that follow every keystroke. */
 .search {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -518,6 +519,78 @@ kbd {
   border-radius: 0.3125rem;
 }
 
+/* The right-click menu: solid, compact, growing out of the point it opened at. */
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.3125rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.2), var(--shadow);
+  animation: pop-in 150ms var(--ease) both;
+}
+
+.context-menu button {
+  padding: 0.375rem 0.75rem;
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-align: left;
+  background: transparent;
+  border-radius: 0.3125rem;
+}
+
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  outline: none;
+  color: #ffffff;
+  background: var(--accent);
+}
+
+.context-menu button:active {
+  transform: none;
+}
+
+.context-separator {
+  height: 1px;
+  margin: 0.3125rem 0.5rem;
+  background: var(--hairline);
+}
+
+/* A short confirmation over the status bar; errors stay a little longer. */
+.toast {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  z-index: 15;
+  max-width: min(32rem, calc(100% - 2rem));
+  padding: 0.4375rem 0.875rem;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: toast-in 250ms var(--ease) both;
+  pointer-events: none;
+}
+
+.toast.is-error {
+  color: var(--danger);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.5rem);
+  }
+}
+
 /* The status bar: translucent, one line, a dot that breathes while indexing. */
 .statusbar {
   display: flex;
@@ -645,7 +718,9 @@ kbd {
     animation: none;
   }
 
-  .drive-menu {
+  .drive-menu,
+  .context-menu,
+  .toast {
     animation: fade 150ms ease both;
   }
 
