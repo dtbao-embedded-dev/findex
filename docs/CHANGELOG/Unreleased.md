@@ -72,6 +72,10 @@
     change the system by surprise. If that is not possible, they are not started.
   - **Folder names:** the folder becomes the terminal's working directory instead of
     an argument, so a name with spaces or `;` opens the right place.
+  - **Untrusted folders:** Claude Code is started by the full path found on PATH, and
+    programs are not looked up in the folder, so a `claude.cmd` inside a cloned repo
+    cannot run in its place. If Findex cannot tell whether it is elevated, it refuses
+    to start them rather than risk administrator rights.
   - A copy is confirmed by a short note above the status bar; a failure (for example
     `claude` not found on PATH) is shown there in red.
 - Each result shows what it is, how big it is and when it last changed, at the right

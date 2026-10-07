@@ -26,9 +26,9 @@ use windows_sys::Win32::System::Ioctl::{
 use windows_sys::Win32::System::Threading::{
     CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess,
     InitializeProcThreadAttributeList, OpenProcess, OpenProcessToken, UpdateProcThreadAttribute,
-    CREATE_NEW_CONSOLE, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
-    PROCESS_CREATE_PROCESS, PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
-    STARTUPINFOEXW,
+    CREATE_NEW_CONSOLE, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
+    LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_CREATE_PROCESS, PROCESS_INFORMATION,
+    PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, STARTUPINFOEXW,
 };
 use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOVABLE};
 use windows_sys::Win32::System::IO::DeviceIoControl;
@@ -371,11 +371,17 @@ fn as_bytes_mut(words: &mut [u64]) -> &mut [u8] {
 
 /// True when this process runs with administrator rights (UAC elevated).
 pub fn is_elevated() -> bool {
+    elevation() == Some(true)
+}
+
+/// Whether this process is elevated; `None` when its token cannot be read, so a
+/// caller can treat "unknown" as the safe answer for its own purpose.
+pub fn elevation() -> Option<bool> {
     let mut token: HANDLE = std::ptr::null_mut();
     // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing, and
     // `token` is a live out-pointer.
     if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
-        return false;
+        return None;
     }
     let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
     let mut written = 0_u32;
@@ -392,7 +398,7 @@ pub fn is_elevated() -> bool {
         CloseHandle(token);
         ok
     };
-    ok != 0 && elevation.TokenIsElevated != 0
+    (ok != 0).then_some(elevation.TokenIsElevated != 0)
 }
 
 /// Starts `exe` with `args` again through the UAC prompt. False when the user said
@@ -471,7 +477,9 @@ impl Drop for AttributeList {
     }
 }
 
-/// Starts `command_line` in a new console, working in `cwd`. With `as_shell_user`,
+/// Starts `command_line` in a new console, working in `cwd`, with the environment
+/// block `env`: UTF-16 `name=value` strings, each NUL-terminated, then one more NUL;
+/// empty means this process's own. With `as_shell_user`,
 /// Explorer becomes its parent, and a process takes its parent's token: it then
 /// runs with the signed-in user's normal rights even when Findex is elevated. That
 /// fails when Explorer is not running.
@@ -479,6 +487,7 @@ pub fn create_process(
     command_line: &str,
     cwd: &std::path::Path,
     as_shell_user: bool,
+    env: &[u16],
 ) -> io::Result<()> {
     let mut parent: Option<Owned> = None;
     let mut buffer: Vec<u64> = Vec::new();
@@ -539,6 +548,9 @@ pub fn create_process(
     let mut startup: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
     let mut process: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
     let mut flags = CREATE_NEW_CONSOLE;
+    if !env.is_empty() {
+        flags |= CREATE_UNICODE_ENVIRONMENT;
+    }
     match &list {
         Some(list) => {
             startup.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
@@ -550,7 +562,9 @@ pub fn create_process(
     // CreateProcessW may write into the command line, so it gets its own buffer.
     let mut command = wide(command_line);
     let dir = wide(&cwd.to_string_lossy());
-    // SAFETY: the strings are NUL-terminated and outlive the call; the startup info
+    // SAFETY: the strings are NUL-terminated and outlive the call; `env`, when not
+    // empty, is a UTF-16 block ending in two NULs, as CREATE_UNICODE_ENVIRONMENT
+    // requires, and outlives the call; the startup info
     // is a STARTUPINFOEXW whenever EXTENDED_STARTUPINFO_PRESENT is set, and its `cb`
     // says which; the attribute list and parent handle are alive until after it.
     let ok = unsafe {
@@ -561,7 +575,11 @@ pub fn create_process(
             std::ptr::null(),
             0,
             flags,
-            std::ptr::null(),
+            if env.is_empty() {
+                std::ptr::null()
+            } else {
+                env.as_ptr().cast::<c_void>()
+            },
             dir.as_ptr(),
             (&startup as *const STARTUPINFOEXW).cast(),
             &mut process,
@@ -597,7 +615,7 @@ mod tests {
     fn a_process_started_as_the_shell_user_works_in_the_given_folder() {
         let dir = std::env::temp_dir().join(format!("findex spawn;{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        create_process("cmd.exe /c cd > where.txt", &dir, true).unwrap();
+        create_process("cmd.exe /c cd > where.txt", &dir, true, &[]).unwrap();
         let written = dir.join("where.txt");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while !written.exists() && std::time::Instant::now() < deadline {
