@@ -78,12 +78,16 @@ impl VolumeIndex {
         self.live
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.live == 0
-    }
-
     /// Adds an entry, or renames and moves it when its FRN is already known.
     pub fn upsert(&mut self, frn: u64, parent: u64, name: &str, is_dir: bool) -> AppResult<()> {
+        if let Some(&id) = self.by_frn.get(&frn) {
+            // The journal reports one file many times while it is written; an
+            // unchanged entry must not grow the arenas with copies of its name.
+            let node = self.nodes[id as usize];
+            if node.parent == parent && node.is_dir == is_dir && self.name(id) == name {
+                return Ok(());
+            }
+        }
         let (name_span, lower_span) = self.push_strings(name)?;
         match self.by_frn.get(&frn) {
             Some(&id) => {
@@ -314,6 +318,15 @@ mod tests {
         assert_eq!(index.owner_of(old), None);
         let new = index.lower.find("final.pdf").unwrap();
         assert_eq!(index.owner_of(new), Some(id));
+    }
+
+    #[test]
+    fn an_unchanged_upsert_adds_nothing() {
+        let mut index = sample();
+        let bytes = index.lower.len();
+        index.upsert(12, 11, "Report.PDF", false).unwrap();
+        assert_eq!(index.lower.len(), bytes);
+        assert_eq!(index.dead_bytes, 0);
     }
 
     #[test]

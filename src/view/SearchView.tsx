@@ -5,6 +5,7 @@ import {
   folderOf,
   highlight,
   initialSearch,
+  keepSelection,
   latestOnly,
   moveSelection,
   revealHit,
@@ -46,13 +47,22 @@ export function SearchView({ total, onOpenDrives }: Props) {
     });
   };
 
-  // A drive finishing (or its snapshot loading) changes what can be found: answer
-  // the query on screen again instead of leaving a stale "No matches".
+  // A drive finishing, its snapshot loading, or files changing on disk change what
+  // can be found: answer the query on screen again, keeping the selected file.
   useEffect(() => {
-    if (state.query.trim() !== "") {
-      run(state.query);
+    if (state.query.trim() === "") {
+      return;
     }
-    // Only a change in the searchable count re-runs here; typing runs on its own.
+    void search(state.query).then((update) => {
+      if (update) {
+        setState((s) => ({
+          ...s,
+          ...update,
+          selected: keepSelection(s.hits[s.selected], update.hits),
+        }));
+      }
+    });
+    // Only a change in the searchable count refreshes here; typing runs on its own.
   }, [total]);
 
   const reveal = (index: number) => {

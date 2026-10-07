@@ -46,8 +46,18 @@
     about 0.2 s.
   - **Damaged files:** a damaged or outdated file is detected by its checksum and
     version, then ignored and rebuilt.
+- NTFS drives stay current while the app runs: created, renamed, moved and deleted
+  files show up in results within about a second, read from the drive's change
+  journal.
+  - **Next launch:** the saved index catches up from the journal instead of being
+    rebuilt.
+  - **Journal gaps:** if the journal no longer reaches back that far, the drive is
+    rebuilt once and followed again.
+  - **When the index is saved:** every ten minutes while it changes, and when the app
+    quits.
 - A search typed before indexing finished now refreshes on its own when more of the
-  drive becomes searchable, instead of staying on "No matches".
+  drive becomes searchable, instead of staying on "No matches". A background refresh
+  keeps the selected file selected.
 - Searches no longer stall while a drive is being folder-scanned. The scan now runs on
   its own threads, so it no longer competes with search for the shared pool.
 

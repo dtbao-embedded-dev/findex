@@ -6,11 +6,15 @@
 //! every unfinished build of the previous start stale: its result is dropped.
 //!
 //! A finished build is saved as a snapshot; the next start loads it first, so the
-//! drive is searchable at once while it is built again behind it.
+//! drive is searchable at once. An NTFS drive whose journal still reaches back to
+//! the snapshot is brought up to date from the journal instead of rebuilt, and is
+//! then kept current from it for as long as the app runs.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
@@ -18,7 +22,7 @@ use crate::error::{AppError, AppResult};
 use crate::model::db::Db;
 use crate::model::drives::{self, Method};
 use crate::model::index::store::VolumeIndex;
-use crate::model::index::{mft, snapshot, walk};
+use crate::model::index::{mft, snapshot, walk, watch};
 use crate::model::search::{self, Hit};
 use crate::model::win32::{self, Journal};
 
@@ -63,7 +67,17 @@ pub struct IndexService {
     run: AtomicU64,
     /// Where snapshots are kept; `None` keeps everything in memory only.
     snapshots: Option<PathBuf>,
+    /// The journal position each followed drive's installed index is current to.
+    positions: Mutex<HashMap<char, Journal>>,
+    /// Drives changed by live updates since their snapshot was last saved.
+    dirty: Mutex<HashSet<char>>,
 }
+
+/// Live updates send status at most this often, so a busy disk does not flood the UI.
+const STATUS_EVERY: Duration = Duration::from_secs(1);
+
+/// How often a followed drive's snapshot is saved while it keeps changing.
+const SAVE_EVERY: Duration = Duration::from_secs(600);
 
 impl IndexService {
     /// A service that saves and reloads snapshots in `dir`.
@@ -143,8 +157,107 @@ impl IndexService {
         })
     }
 
+    /// Saves every drive changed by live updates since its last save; called on quit,
+    /// so the next launch resumes from the journal instead of rebuilding.
+    pub fn save_changed(&self) {
+        let letters: Vec<char> = self.lock_dirty().drain().collect();
+        for letter in letters {
+            self.save_installed(letter);
+        }
+    }
+
+    /// One drive's whole life: show its snapshot, bring it up to date (resuming from
+    /// the journal when the snapshot allows, else rebuilding), then, for NTFS, follow
+    /// the journal until a newer start takes over. A journal gap rebuilds and follows
+    /// again.
     fn index_drive(&self, run: u64, letter: char, method: Method, emit: &Emit) {
-        self.load_snapshot(run, letter, emit);
+        let saved = self.load_snapshot(run, letter, emit);
+        let mut resume =
+            saved.filter(|journal| method == Method::Mft && watch::continues(letter, journal));
+        loop {
+            let journal = match resume.take() {
+                Some(journal) => {
+                    self.update(run, letter, emit, |d| {
+                        d.state = DriveState::Ready;
+                        d.entries = d.searchable;
+                        d.method = Method::Mft;
+                    });
+                    Some(journal)
+                }
+                None => match self.build(run, letter, method, emit) {
+                    Some(journal) => journal,
+                    None => return,
+                },
+            };
+            let Some(journal) = journal else {
+                // A folder scan has no journal to follow.
+                return;
+            };
+            match self.follow(run, letter, journal, emit) {
+                watch::Follow::Gap => continue,
+                watch::Follow::Stopped => return,
+                watch::Follow::Failed(err) => {
+                    self.update(run, letter, emit, |d| {
+                        d.note = Some(format!("Live updates stopped ({err})"));
+                    });
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Applies the journal to the installed index as it changes. Status goes out at
+    /// most once a second; the snapshot is saved every few minutes and on quit.
+    fn follow(&self, run: u64, letter: char, journal: Journal, emit: &Emit) -> watch::Follow {
+        self.lock_positions().insert(letter, journal);
+        let mut last_emit = Instant::now();
+        let mut last_save = Instant::now();
+        let mut on_batch = |records: &[win32::UsnRecord], position: Journal| -> AppResult<()> {
+            let (changed, entries) = {
+                let mut volumes = self.write_volumes();
+                match volumes.iter_mut().find(|v| root_letter(v) == letter) {
+                    Some(index) => {
+                        let changed = watch::apply(index, records)?;
+                        index.compact_if_wasteful()?;
+                        (changed, index.len())
+                    }
+                    None => (0, 0),
+                }
+            };
+            self.lock_positions().insert(letter, position);
+            if changed > 0 {
+                self.lock_dirty().insert(letter);
+                if last_emit.elapsed() >= STATUS_EVERY {
+                    last_emit = Instant::now();
+                    self.update(run, letter, emit, |d| {
+                        d.entries = entries;
+                        d.searchable = entries;
+                    });
+                }
+            }
+            if last_save.elapsed() >= SAVE_EVERY && self.lock_dirty().remove(&letter) {
+                last_save = Instant::now();
+                self.save_installed(letter);
+            }
+            Ok(())
+        };
+        watch::follow(letter, journal, &|| self.is_current(run), &mut on_batch)
+    }
+
+    /// Reads the drive from scratch and installs it. Returns the journal position to
+    /// follow from (`None` inside for a folder scan), or `None` when the build failed
+    /// or a newer start superseded it.
+    fn build(
+        &self,
+        run: u64,
+        letter: char,
+        method: Method,
+        emit: &Emit,
+    ) -> Option<Option<Journal>> {
+        self.update(run, letter, emit, |d| {
+            d.state = DriveState::Indexing;
+            d.entries = 0;
+        });
         let progress = |entries: usize| self.update(run, letter, emit, |d| d.entries = entries);
         let built = match method {
             Method::Mft => match mft::build(letter, &mut |n| progress(n)) {
@@ -165,39 +278,63 @@ impl IndexService {
                 // Saved before it is installed, while no lock is held: saving under the
                 // read lock would queue the next install, and every search behind it.
                 self.save_snapshot(&index, journal);
-                if self.install(run, index) {
-                    self.update(run, letter, emit, |d| {
-                        d.state = DriveState::Ready;
-                        d.entries = entries;
-                        d.searchable = entries;
-                        d.method = used;
-                        d.note = note;
-                    });
+                if !self.install(run, index) {
+                    return None;
                 }
+                self.update(run, letter, emit, |d| {
+                    d.state = DriveState::Ready;
+                    d.entries = entries;
+                    d.searchable = entries;
+                    d.method = used;
+                    d.note = note;
+                });
+                Some(journal)
             }
-            Err(err) => self.update(run, letter, emit, |d| {
-                d.state = DriveState::Failed;
-                d.note = Some(err.to_string());
-            }),
+            Err(err) => {
+                self.update(run, letter, emit, |d| {
+                    d.state = DriveState::Failed;
+                    d.note = Some(err.to_string());
+                });
+                None
+            }
         }
     }
 
-    /// Makes the drive's last snapshot searchable while it is built again. A missing
-    /// snapshot is the normal first run; a damaged one is ignored and rebuilt.
-    fn load_snapshot(&self, run: u64, letter: char, emit: &Emit) {
-        let Some(path) = self.snapshot_path(letter) else {
-            return;
-        };
+    /// Makes the drive's last snapshot searchable at once. Returns the journal
+    /// position it is current to, if it has one. A missing snapshot is the normal
+    /// first run; a damaged one is ignored and rebuilt.
+    fn load_snapshot(&self, run: u64, letter: char, emit: &Emit) -> Option<Journal> {
+        let path = self.snapshot_path(letter)?;
         match snapshot::load(&path) {
             Ok(loaded) => {
                 let entries = loaded.index.len();
-                if self.install(run, loaded.index) {
-                    self.update(run, letter, emit, |d| d.searchable = entries);
+                if !self.install(run, loaded.index) {
+                    return None;
                 }
+                self.update(run, letter, emit, |d| d.searchable = entries);
+                loaded.journal
             }
-            Err(AppError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
-            Err(err) => eprintln!("ignoring the snapshot of {letter}: ({err})"),
+            Err(AppError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => None,
+            Err(err) => {
+                eprintln!("ignoring the snapshot of {letter}: ({err})");
+                None
+            }
         }
+    }
+
+    /// Saves the installed index of `letter` with the journal position it is current
+    /// to. It holds the read lock while writing, which is why it runs only every few
+    /// minutes and on quit, never after each change.
+    fn save_installed(&self, letter: char) {
+        let journal = self.lock_positions().get(&letter).copied();
+        let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
+        if let Some(index) = volumes.iter().find(|v| root_letter(v) == letter) {
+            self.save_snapshot(index, journal);
+        }
+    }
+
+    fn is_current(&self, run: u64) -> bool {
+        self.run.load(Ordering::SeqCst) == run
     }
 
     /// Saves a drive's index. A failed save only costs the next launch its head
@@ -253,6 +390,16 @@ impl IndexService {
 
     fn lock_status(&self) -> MutexGuard<'_, Status> {
         self.status.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_positions(&self) -> MutexGuard<'_, HashMap<char, Journal>> {
+        self.positions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_dirty(&self) -> MutexGuard<'_, HashSet<char>> {
+        self.dirty.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 

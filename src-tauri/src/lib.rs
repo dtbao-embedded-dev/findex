@@ -57,5 +57,13 @@ pub fn run() -> tauri::Result<()> {
             commands::search_names,
             commands::reveal_path
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Live updates since the last save would otherwise be replayed from the
+            // journal, or lost to a rebuild if it wrapped meanwhile.
+            if let tauri::RunEvent::Exit = event {
+                app.state::<Arc<IndexService>>().save_changed();
+            }
+        });
+    Ok(())
 }

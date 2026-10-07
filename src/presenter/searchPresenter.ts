@@ -60,6 +60,17 @@ export function describeResults(count: number, tookMs: number): string {
   return `${amount} · ${Math.max(1, Math.round(tookMs))} ms`;
 }
 
+/**
+ * Where the selection belongs after the results were refreshed in the background:
+ * on the same file if it is still listed, otherwise the top.
+ */
+export function keepSelection(previous: Hit | undefined, hits: Hit[]): number {
+  if (!previous) {
+    return 0;
+  }
+  return Math.max(0, hits.findIndex((hit) => hit.path === previous.path));
+}
+
 /** Moves the selection by `delta`, wrapping at both ends. */
 export function moveSelection(selected: number, delta: number, count: number): number {
   if (count === 0) {

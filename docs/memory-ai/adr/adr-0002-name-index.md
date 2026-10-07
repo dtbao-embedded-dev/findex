@@ -1,10 +1,10 @@
 ---
 title: "ADR-0002: Name Index"
 category: architecture
-purpose: How findex indexes file and folder names — MFT read as administrator, folder walk fallback, in-memory arena search.
+purpose: How findex indexes file and folder names — MFT read as administrator, folder walk fallback, in-memory arena search, snapshots and USN live updates.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/index/mft.rs, src-tauri/src/model/index/walk.rs, src-tauri/src/model/index/service.rs, src-tauri/src/model/index/store.rs, src-tauri/src/model/search.rs, src-tauri/src/model/win32.rs, src-tauri/build.rs, src-tauri/findex.manifest
+source: src-tauri/src/model/index/mft.rs, src-tauri/src/model/index/snapshot.rs, src-tauri/src/model/index/watch.rs, src-tauri/src/model/index/walk.rs, src-tauri/src/model/index/service.rs, src-tauri/src/model/index/store.rs, src-tauri/src/model/search.rs, src-tauri/src/model/win32.rs, src-tauri/build.rs, src-tauri/findex.manifest
 confidence: confirmed
 verified_at: 2026-10-07
 keywords: mft, usn, FSCTL_ENUM_USN_DATA, requireAdministrator, walker, rayon, memmem, omni-search, name search
@@ -42,6 +42,22 @@ The user asked for fast name search modelled on github.com/Eul45/omni-search. Re
   for "e" (matches almost every name).
 - **Running the tests and benchmark:** `cargo test --release --lib`. Without `--lib`,
   the release app binary's test harness may require elevation.
+
+## Persistence and live updates
+
+| Choice | Reason |
+|--------|--------|
+| Snapshot per drive, `<app data>/index/<L>.fxi`: magic `FXI1`, version, journal position, live entries, FNV-1a trailer; temp file then rename | Search works at launch before any scan; a damaged or other-version file is ignored and rebuilt |
+| Snapshot written before install, never under the volumes lock | Saving under the read lock queued the next install and every search behind it |
+| NTFS: resume from the snapshot's USN when the journal id matches and `first_usn <= saved <= next_usn` | Skips a full rebuild at launch |
+| Watcher polls `FSCTL_READ_USN_JOURNAL` (V2 records), 250 ms when idle; journal gap → rebuild | omni-search's concept. Create or rename-new upserts, delete removes, and an unknown FRN is added. |
+| Live-update status at most 1/s; snapshot every 10 min while dirty and on `RunEvent::Exit` | A busy disk must not flood the UI or rewrite hundreds of MB per change |
+| Folder walk runs on its own rayon pool | On the shared pool a walk starved every search (20 s observed) |
+
+- **Measured (release):** a 1M-entry snapshot saves in about 110 ms and loads in about
+  180 ms. On this machine C: + E: hold 6.3M entries and take 250 MB on disk.
+- **Unverified here:** the live path needs an Administrator terminal:
+  `cargo test --lib -- --ignored usn_sees_new_file --nocapture`.
 
 ## Consequences
 

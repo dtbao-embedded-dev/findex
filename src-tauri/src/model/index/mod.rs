@@ -5,3 +5,4 @@ pub mod service;
 pub mod snapshot;
 pub mod store;
 pub mod walk;
+pub mod watch;

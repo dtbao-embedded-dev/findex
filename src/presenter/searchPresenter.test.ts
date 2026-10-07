@@ -5,6 +5,7 @@ import {
   describeResults,
   folderOf,
   highlight,
+  keepSelection,
   latestOnly,
   moveSelection,
   revealHit,
@@ -74,6 +75,18 @@ describe("describeResults", () => {
     expect(describeResults(1, 0.4)).toBe("1 result · 1 ms");
     expect(describeResults(12, 3.6)).toBe("12 results · 4 ms");
     expect(describeResults(200, 15)).toBe("Top 200 results · 15 ms");
+  });
+});
+
+describe("keepSelection", () => {
+  it("stays on the same file when a refresh moves it", () => {
+    const hits = [hit("C:\\new.txt"), hit("C:\\a.txt"), hit("C:\\b.txt")];
+    expect(keepSelection(hit("C:\\a.txt"), hits)).toBe(1);
+  });
+
+  it("falls back to the top when the file left the results", () => {
+    expect(keepSelection(hit("C:\\gone.txt"), [hit("C:\\a.txt")])).toBe(0);
+    expect(keepSelection(undefined, [hit("C:\\a.txt")])).toBe(0);
   });
 });
 

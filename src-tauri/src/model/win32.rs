@@ -6,7 +6,8 @@ use std::ffi::c_void;
 use std::io;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_HANDLE_EOF, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE,
+    CloseHandle, ERROR_HANDLE_EOF, ERROR_JOURNAL_DELETE_IN_PROGRESS, ERROR_JOURNAL_ENTRY_DELETED,
+    ERROR_JOURNAL_NOT_ACTIVE, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
@@ -14,7 +15,8 @@ use windows_sys::Win32::Storage::FileSystem::{
 };
 use windows_sys::Win32::System::Diagnostics::Debug::{SetThreadErrorMode, SEM_FAILCRITICALERRORS};
 use windows_sys::Win32::System::Ioctl::{
-    FSCTL_ENUM_USN_DATA, FSCTL_QUERY_USN_JOURNAL, MFT_ENUM_DATA_V1, USN_JOURNAL_DATA_V0,
+    FSCTL_ENUM_USN_DATA, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, MFT_ENUM_DATA_V1,
+    READ_USN_JOURNAL_DATA_V1, USN_JOURNAL_DATA_V0,
 };
 use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOVABLE};
 use windows_sys::Win32::System::IO::DeviceIoControl;
@@ -213,6 +215,50 @@ pub fn enum_mft(
             .into_iter()
             .for_each(&mut each);
     }
+}
+
+/// Changes read from a journal, and where the next read starts.
+pub struct UsnBatch {
+    pub next_usn: i64,
+    pub records: Vec<UsnRecord>,
+}
+
+/// Reads the journal entries written since `start`, without waiting: an empty batch
+/// means nothing changed. `buffer` is reused between calls.
+pub fn read_usn(
+    volume: &VolumeHandle,
+    journal_id: u64,
+    start: i64,
+    buffer: &mut [u64],
+) -> io::Result<UsnBatch> {
+    let input = READ_USN_JOURNAL_DATA_V1 {
+        StartUsn: start,
+        ReasonMask: u32::MAX,
+        ReturnOnlyOnClose: 0,
+        Timeout: 0,
+        BytesToWaitFor: 0,
+        UsnJournalID: journal_id,
+        MinMajorVersion: 2,
+        MaxMajorVersion: 2,
+    };
+    let out = as_bytes_mut(buffer);
+    let filled = ioctl(volume, FSCTL_READ_USN_JOURNAL, &input, out)?;
+    let next_usn = read_u64(out, 0).map_or(start, |usn| usn as i64);
+    let records = parse_usn_records(out.get(8..filled).unwrap_or_default());
+    Ok(UsnBatch { next_usn, records })
+}
+
+/// True when the journal no longer holds the entries asked for: it wrapped, was
+/// deleted or was recreated. The index must then be rebuilt from the file table.
+pub fn is_journal_gap(err: &io::Error) -> bool {
+    matches!(
+        err.raw_os_error().map(|code| code as u32),
+        Some(
+            ERROR_JOURNAL_ENTRY_DELETED
+                | ERROR_JOURNAL_NOT_ACTIVE
+                | ERROR_JOURNAL_DELETE_IN_PROGRESS
+        )
+    )
 }
 
 /// Reads packed USN_RECORD_V2 entries. Other record versions are skipped; a record
