@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { placeMenu, type MenuAction, type MenuItem } from "../presenter/menuPresenter";
+import { useDismiss } from "./useDismiss";
 
 type Props = {
   /** Where it was asked for: the pointer, or the selected row for the keyboard. */
@@ -29,30 +30,11 @@ export function ContextMenu({ at, items, onPick, onClose }: Props) {
     }
   }, [at]);
 
+  useDismiss(menu, onClose);
+
   useEffect(() => {
     menu.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
-    const outside = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("pointerdown", outside, true);
-    document.addEventListener("keydown", escape, true);
-    window.addEventListener("blur", onClose);
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("keydown", escape, true);
-      window.removeEventListener("blur", onClose);
-      window.removeEventListener("resize", onClose);
-    };
-  }, [onClose]);
+  }, []);
 
   const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
     const buttons = Array.from(
