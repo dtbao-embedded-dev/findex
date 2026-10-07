@@ -17,13 +17,14 @@
   It stays up for at least 0.9 s so it never just flashes. If the main window fails to
   report ready, it is shown anyway after 10 s. The copyright is read from
   `bundle.copyright` in `tauri.conf.json`, the same value the installer uses.
-- The first launch asks which drives to index. Each local drive is shown with its
-  label, free space and filesystem, and C: is ticked by default. NTFS drives are marked
-  as indexed instantly and kept current; other filesystems get a folder scan. The
-  choice is saved, and the Drives button reopens the screen to change it. Network and
-  optical drives are not offered: a disconnected network drive can hang the list.
-- Chosen drives are indexed in the background as soon as the app starts, and again
-  whenever the choice changes:
+- The app opens straight on search and indexes one drive at a time, the system drive
+  on the first launch. A drive button beside the search field lists every local drive
+  with its label, free space and filesystem, and whether it is indexed instantly (NTFS)
+  or by a folder scan. Picking one indexes that drive alone; the drive it replaces
+  keeps its saved index, so coming back to it is quick. Network and optical drives are
+  not offered: a disconnected network drive can hang the list.
+- The active drive is indexed in the background as soon as the app starts, and again
+  whenever another drive is picked:
   - **NTFS drives:** read straight from the drive's file table, which takes seconds for
     millions of names.
   - **Other drives:** a parallel folder scan that never follows junctions or links.

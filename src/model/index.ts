@@ -17,11 +17,6 @@ export type IndexStatus = {
   drives: DriveStatus[];
 };
 
-/** (Re)indexes the drives saved in setup; Rust reports progress as events. */
-export function startIndex(): Promise<void> {
-  return invoke<void>("start_index");
-}
-
 export function getIndexStatus(): Promise<IndexStatus> {
   return invoke<IndexStatus>("index_status");
 }

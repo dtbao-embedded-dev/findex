@@ -1,5 +1,6 @@
-//! Which drives exist, how each one can be indexed, and which ones the user chose.
-//! The choice is stored in the `setting` table as a JSON array of drive letters.
+//! Which drives exist, how each one can be indexed, and which one is active: the
+//! app indexes and searches one drive at a time. The choice is stored in the
+//! `setting` table as a JSON array holding that one letter.
 
 use serde::Serialize;
 
@@ -7,7 +8,7 @@ use crate::error::{AppError, AppResult};
 use crate::model::db::Db;
 use crate::model::win32::{self, Volume};
 
-/// The setting that holds the chosen drives; absent until setup is done once.
+/// The setting that holds the active drive; absent until the first launch picks one.
 pub const SCAN_DRIVES_KEY: &str = "scan.drives";
 
 /// How a drive's names are read.
@@ -58,55 +59,65 @@ fn describe(volume: Volume) -> Drive {
     }
 }
 
-/// The chosen drive letters, or `None` before setup has been done.
-pub fn load_selection(db: &Db) -> AppResult<Option<Vec<String>>> {
+/// The drive being indexed and searched, or `None` before one was ever chosen. An
+/// older version stored several drives; only the first of them stays active.
+pub fn load_active(db: &Db) -> AppResult<Option<String>> {
     let Some(json) = db.get_setting(SCAN_DRIVES_KEY)? else {
         return Ok(None);
     };
     let letters: Vec<String> = serde_json::from_str(&json)
-        .map_err(|_| AppError::Invalid("the saved drive list is unreadable".into()))?;
-    Ok(Some(letters))
+        .map_err(|_| AppError::Invalid("the saved drive is unreadable".into()))?;
+    Ok(letters.into_iter().next())
 }
 
-/// Validates and stores the chosen letters: upper case, one each, in order.
-pub fn save_selection(db: &Db, letters: &[String]) -> AppResult<Vec<String>> {
-    let clean = normalize(letters)?;
-    let json = serde_json::to_string(&clean)
-        .map_err(|_| AppError::Invalid("the drive list could not be saved".into()))?;
+/// Validates and stores the one active drive, upper case. Stored as a one-item list,
+/// the format older versions read and wrote.
+pub fn save_active(db: &Db, letter: &str) -> AppResult<String> {
+    let clean = normalize(letter)?;
+    let json = serde_json::to_string(&[&clean])
+        .map_err(|_| AppError::Invalid("the drive could not be saved".into()))?;
     db.set_setting(SCAN_DRIVES_KEY, &json)?;
     Ok(clean)
 }
 
-fn normalize(letters: &[String]) -> AppResult<Vec<String>> {
-    let mut clean = Vec::new();
-    for letter in letters {
-        let mut chars = letter.trim().trim_end_matches([':', '\\']).chars();
-        match (chars.next(), chars.next()) {
-            (Some(c), None) if c.is_ascii_alphabetic() => {
-                clean.push(c.to_ascii_uppercase().to_string());
-            }
-            _ => {
-                return Err(AppError::Invalid(format!(
-                    "\"{letter}\" is not a drive letter"
-                )))
-            }
-        }
+/// The active drive; on the first launch, the system drive is chosen and saved, so
+/// the app opens straight on search. `None` only when no drive can be found.
+pub fn ensure_active(db: &Db) -> AppResult<Option<String>> {
+    if let Some(letter) = load_active(db)? {
+        return Ok(Some(letter));
     }
-    clean.sort();
-    clean.dedup();
-    if clean.is_empty() {
-        return Err(AppError::Invalid("choose at least one drive".into()));
+    let system = std::env::var("SystemDrive").ok();
+    // The system drive always exists; listing drives can wait on a sleeping USB disk.
+    let pick = match system.as_deref().map(normalize) {
+        Some(Ok(letter)) => Some(letter),
+        _ => default_letter(&list()),
+    };
+    pick.map(|letter| save_active(db, &letter)).transpose()
+}
+
+/// The drive to start with when the system drive is unknown: the first fixed NTFS
+/// drive, which indexes fastest, otherwise the first drive.
+pub fn default_letter(drives: &[Drive]) -> Option<String> {
+    drives
+        .iter()
+        .find(|d| d.method == Method::Mft && !d.removable)
+        .or_else(|| drives.first())
+        .map(|d| d.letter.clone())
+}
+
+fn normalize(letter: &str) -> AppResult<String> {
+    let mut chars = letter.trim().trim_end_matches([':', '\\']).chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) if c.is_ascii_alphabetic() => Ok(c.to_ascii_uppercase().to_string()),
+        _ => Err(AppError::Invalid(format!(
+            "\"{letter}\" is not a drive letter"
+        ))),
     }
-    Ok(clean)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn strings(items: &[&str]) -> Vec<String> {
-        items.iter().map(|s| s.to_string()).collect()
-    }
 
     #[test]
     fn ntfs_uses_the_file_table_and_others_a_walk() {
@@ -127,30 +138,70 @@ mod tests {
         assert!(drive.total > 0);
     }
 
-    #[test]
-    fn the_selection_is_absent_until_saved_then_round_trips() {
-        let db = crate::model::db::open_in_memory().unwrap();
-        assert_eq!(load_selection(&db).unwrap(), None);
-        let saved = save_selection(&db, &strings(&["d", "C:", "c:\\"])).unwrap();
-        assert_eq!(saved, ["C", "D"]);
-        assert_eq!(load_selection(&db).unwrap(), Some(strings(&["C", "D"])));
+    fn drive(letter: &str, method: Method, removable: bool) -> Drive {
+        Drive {
+            letter: letter.into(),
+            label: String::new(),
+            filesystem: String::new(),
+            removable,
+            total: 0,
+            free: 0,
+            method,
+        }
     }
 
     #[test]
-    fn refuses_an_empty_or_invalid_selection() {
+    fn the_active_drive_is_absent_until_saved_then_round_trips() {
         let db = crate::model::db::open_in_memory().unwrap();
-        assert!(matches!(
-            save_selection(&db, &[]),
-            Err(AppError::Invalid(_))
-        ));
-        assert!(matches!(
-            save_selection(&db, &strings(&["CD"])),
-            Err(AppError::Invalid(_))
-        ));
-        assert!(matches!(
-            save_selection(&db, &strings(&["1"])),
-            Err(AppError::Invalid(_))
-        ));
-        assert_eq!(load_selection(&db).unwrap(), None);
+        assert_eq!(load_active(&db).unwrap(), None);
+        assert_eq!(save_active(&db, "d:\\").unwrap(), "D");
+        assert_eq!(load_active(&db).unwrap().as_deref(), Some("D"));
+        assert_eq!(save_active(&db, "e").unwrap(), "E");
+        assert_eq!(load_active(&db).unwrap().as_deref(), Some("E"));
+    }
+
+    #[test]
+    fn a_saved_list_of_several_drives_keeps_only_the_first() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        db.set_setting(SCAN_DRIVES_KEY, r#"["C","E"]"#).unwrap();
+        assert_eq!(load_active(&db).unwrap().as_deref(), Some("C"));
+    }
+
+    #[test]
+    fn refuses_an_invalid_drive_letter() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        for bad in ["", "CD", "1"] {
+            assert!(matches!(save_active(&db, bad), Err(AppError::Invalid(_))));
+        }
+        assert_eq!(load_active(&db).unwrap(), None);
+    }
+
+    #[test]
+    fn the_first_launch_picks_and_saves_the_system_drive() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        let system = std::env::var("SystemDrive").unwrap();
+        let expected = system[..1].to_ascii_uppercase();
+        assert_eq!(ensure_active(&db).unwrap(), Some(expected.clone()));
+        assert_eq!(load_active(&db).unwrap(), Some(expected));
+    }
+
+    #[test]
+    fn a_saved_drive_is_kept_over_the_system_drive() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        save_active(&db, "Q").unwrap();
+        assert_eq!(ensure_active(&db).unwrap().as_deref(), Some("Q"));
+    }
+
+    #[test]
+    fn the_default_prefers_a_fixed_ntfs_drive_then_the_first() {
+        let usb = drive("D", Method::Mft, true);
+        let fat = drive("E", Method::Walk, false);
+        let ntfs = drive("F", Method::Mft, false);
+        assert_eq!(
+            default_letter(&[usb.clone(), fat.clone(), ntfs]).as_deref(),
+            Some("F")
+        );
+        assert_eq!(default_letter(&[fat, usb]).as_deref(), Some("E"));
+        assert_eq!(default_letter(&[]), None);
     }
 }

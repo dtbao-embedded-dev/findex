@@ -55,9 +55,8 @@ pub fn run() -> tauri::Result<()> {
             commands::app_about,
             commands::splash_ready,
             commands::list_drives,
-            commands::get_scan_drives,
-            commands::set_scan_drives,
-            commands::start_index,
+            commands::get_active_drive,
+            commands::set_active_drive,
             commands::index_status,
             commands::search_names,
             commands::reveal_path

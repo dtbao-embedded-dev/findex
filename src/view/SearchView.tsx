@@ -10,18 +10,22 @@ import {
   moveSelection,
   revealHit,
 } from "../presenter/searchPresenter";
+import { searchPlaceholder } from "../presenter/drivePresenter";
+import { DrivePicker } from "./DrivePicker";
 
 type Props = {
   /** How many names are indexed, for the empty state. */
   total: number;
-  onOpenDrives: () => void;
+  /** The drive the search covers. */
+  active: string | null;
+  onActiveChange: (active: string | null) => void;
 };
 
 /**
  * The search screen: one field, results as you type, keyboard first. ↑/↓ move the
  * selection, Enter (or a double click) shows the result in Explorer, Esc clears.
  */
-export function SearchView({ total, onOpenDrives }: Props) {
+export function SearchView({ total, active, onActiveChange }: Props) {
   const [state, setState] = useState(initialSearch);
   const search = useMemo(() => latestOnly(), []);
   const field = useRef<HTMLInputElement>(null);
@@ -93,6 +97,14 @@ export function SearchView({ total, onOpenDrives }: Props) {
   return (
     <div className="search">
       <div className="toolbar">
+        <DrivePicker
+          active={active}
+          onChange={(letter, error) => {
+            onActiveChange(letter);
+            setState((s) => ({ ...s, error }));
+            field.current?.focus();
+          }}
+        />
         <label className="search-field">
           <SearchGlyph />
           <input
@@ -101,7 +113,7 @@ export function SearchView({ total, onOpenDrives }: Props) {
             type="text"
             spellCheck={false}
             autoComplete="off"
-            placeholder="Search files and folders"
+            placeholder={searchPlaceholder(active)}
             aria-label="Search files and folders"
             aria-controls="results"
             value={state.query}
@@ -109,9 +121,6 @@ export function SearchView({ total, onOpenDrives }: Props) {
             onKeyDown={onKeyDown}
           />
         </label>
-        <button type="button" className="button-secondary" onClick={onOpenDrives}>
-          Drives
-        </button>
       </div>
 
       <div className="results-scroll">
@@ -121,7 +130,9 @@ export function SearchView({ total, onOpenDrives }: Props) {
           </div>
         ) : !hasQuery ? (
           <div className="empty">
-            <p className="empty-title">Search {total.toLocaleString("en-US")} items</p>
+            <p className="empty-title">
+              Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
+            </p>
             <p className="empty-hint">
               Type part of a name. Narrow with <kbd>ext:pdf</kbd> or <kbd>type:folder</kbd>.
             </p>

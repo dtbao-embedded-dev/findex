@@ -90,12 +90,21 @@ impl IndexService {
         }
     }
 
-    /// Indexes the drives saved in setup; does nothing before setup has been done.
+    /// Indexes the active drive, choosing the system drive on the first launch. Does
+    /// nothing only when no drive can be found.
     pub fn start_saved(self: &Arc<Self>, db: &Db, emit: Emit) -> AppResult<()> {
-        if let Some(letters) = drives::load_selection(db)? {
-            self.start(&letters, emit);
+        if let Some(letter) = drives::ensure_active(db)? {
+            self.start(&[letter], emit);
         }
         Ok(())
+    }
+
+    /// Makes `letter` the active drive and indexes it alone. The drive it replaces
+    /// leaves memory; its snapshot stays on disk for when it is chosen again.
+    pub fn switch_to(self: &Arc<Self>, db: &Db, letter: &str, emit: Emit) -> AppResult<String> {
+        let letter = drives::save_active(db, letter)?;
+        self.start(std::slice::from_ref(&letter), emit);
+        Ok(letter)
     }
 
     /// (Re)indexes exactly `letters`, dropping drives no longer chosen.

@@ -61,29 +61,24 @@ pub async fn list_drives() -> AppResult<Vec<Drive>> {
         .map_err(|err| AppError::Invalid(format!("listing drives stopped: {err}")))
 }
 
-/// The drives chosen in setup; null until setup has been done.
+/// The drive being indexed and searched; null only when no drive exists.
 #[tauri::command]
-pub fn get_scan_drives(db: State<'_, Db>) -> AppResult<Option<Vec<String>>> {
-    drives::load_selection(&db)
+pub fn get_active_drive(db: State<'_, Db>) -> AppResult<Option<String>> {
+    drives::load_active(&db)
 }
 
+/// Saves `letter` as the active drive and indexes it alone; progress arrives as
+/// `index-status` events. Off the main thread: starting waits for the index lock,
+/// which a snapshot save can hold for a moment.
 #[tauri::command]
-pub fn set_scan_drives(db: State<'_, Db>, letters: Vec<String>) -> AppResult<Vec<String>> {
-    drives::save_selection(&db, &letters)
-}
-
-/// (Re)indexes the drives saved in setup; progress arrives as `index-status` events.
-/// Off the main thread: starting waits for the index lock, which a snapshot save
-/// can hold for a moment.
-#[tauri::command]
-pub async fn start_index(app: AppHandle) -> AppResult<()> {
+pub async fn set_active_drive(app: AppHandle, letter: String) -> AppResult<String> {
     tauri::async_runtime::spawn_blocking(move || {
         let db = app.state::<Db>();
         let index = app.state::<Arc<IndexService>>();
-        index.start_saved(&db, status_emitter(&app))
+        index.switch_to(&db, &letter, status_emitter(&app))
     })
     .await
-    .map_err(|err| AppError::Invalid(format!("indexing could not start: {err}")))?
+    .map_err(|err| AppError::Invalid(format!("the drive could not be switched: {err}")))?
 }
 
 #[tauri::command]

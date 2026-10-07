@@ -15,12 +15,12 @@ export function listDrives(): Promise<Drive[]> {
   return invoke<Drive[]>("list_drives");
 }
 
-/** The drive letters chosen in setup, or null before setup has been done. */
-export function getScanDrives(): Promise<string[] | null> {
-  return invoke<string[] | null>("get_scan_drives");
+/** The drive being indexed and searched; null only when no drive exists. */
+export function getActiveDrive(): Promise<string | null> {
+  return invoke<string | null>("get_active_drive");
 }
 
-/** Stores the chosen letters; Rust validates them and returns what it stored. */
-export function setScanDrives(letters: string[]): Promise<string[]> {
-  return invoke<string[]>("set_scan_drives", { letters });
+/** Makes `letter` the one indexed drive; Rust validates it and returns what it stored. */
+export function setActiveDrive(letter: string): Promise<string> {
+  return invoke<string>("set_active_drive", { letter });
 }
