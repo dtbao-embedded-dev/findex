@@ -11,6 +11,7 @@ import {
   keepSelection,
   latestDetails,
   latestOnly,
+  latestSizes,
   moveSelection,
   PAGE,
   resultsView,
@@ -88,6 +89,15 @@ export function SearchView({
   const loadingMore = useRef(false);
   const loadDetails = useMemo(() => latestDetails(), []);
   const [details, setDetails] = useState<Record<string, Details>>({});
+  const loadSizes = useMemo(() => latestSizes(), []);
+  // Folder sizes measured for this query: bytes, or null for a folder that cannot
+  // be read. Read through a ref by the effect that asks, so an answer arriving does
+  // not ask again (and stop the walks still running).
+  const [sizes, setSizes] = useState<Record<string, number | null>>({});
+  const sizesNow = useRef(sizes);
+  // The query the sizes were measured for: a new one measures its folders afresh
+  // (Rust still remembers recent sizes), once its own rows are on screen.
+  const sizesFor = useRef(state.query);
   // The rows in view, whose details are read; the rest are read as they scroll in.
   const [shown, setShown] = useState<Rows>({ first: 0, last: 0 });
   const detailsFor = useRef(state.hits);
@@ -163,6 +173,34 @@ export function SearchView({
     });
     // The tags change too: a deleted tag must leave the rows that showed it.
   }, [state.hits, shown, loadDetails, tags]);
+
+  useEffect(() => {
+    sizesNow.current = sizes;
+  }, [sizes]);
+
+  // The folders on screen are measured in the background; scrolling stops the walks
+  // for rows that left and starts those for rows that came in.
+  useEffect(() => {
+    if (sizesFor.current !== state.query) {
+      sizesFor.current = state.query;
+      sizesNow.current = {};
+      setSizes({});
+    }
+    const asked = state.hits
+      .slice(shown.first, shown.last)
+      .filter((hit) => hit.isDir && !(hit.path in sizesNow.current))
+      .map((hit) => hit.path);
+    void loadSizes(asked, (path, bytes) => setSizes((s) => ({ ...s, [path]: bytes }))).then(
+      (ended) => {
+        if (ended && asked.length > 0) {
+          setSizes((s) => ({
+            ...Object.fromEntries(asked.map((path) => [path, null])),
+            ...s,
+          }));
+        }
+      },
+    );
+  }, [state.hits, shown, loadSizes]);
 
   // Dates such as "Today" are measured when each search is asked, not when picked.
   const run = (query: string, by: FilterState = filters) => {
@@ -363,6 +401,7 @@ export function SearchView({
             selected={state.selected}
             query={state.query}
             details={details}
+            sizes={sizes}
             meta={
               state.scan !== null
                 ? describeScan(state.hits.length, state.scan, state.tookMs)

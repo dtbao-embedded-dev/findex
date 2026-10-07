@@ -8,6 +8,7 @@ pub mod details;
 pub mod drives;
 pub mod elevation;
 pub mod find;
+pub mod folder_size;
 pub mod inbox;
 pub mod index;
 pub mod launch;

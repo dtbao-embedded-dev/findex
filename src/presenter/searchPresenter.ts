@@ -1,4 +1,4 @@
-import { describePaths, type Details } from "../model/details";
+import { describePaths, folderSizes, type Details, type FolderSize } from "../model/details";
 import { searchNames, type Answer, type Filters, type Hit } from "../model/search";
 import { formatBytes } from "./drivePresenter";
 
@@ -328,17 +328,56 @@ const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle
 
 /**
  * The two short lines at the right of a result: its type and size, then when it last
- * changed. Null until the details arrive.
+ * changed. Null until the details arrive. A folder's size is measured apart:
+ * `folderSize` is its bytes, "pending" while measured, null when it cannot be read,
+ * and undefined when it was not asked for.
  */
 export function describeHit(
   details: Details | undefined,
+  folderSize?: FolderBytes,
   formatDate: (ms: number) => string = (ms) => DATE.format(ms),
 ): { kind: string; modified: string } | null {
   if (!details) {
     return null;
   }
+  const size =
+    details.size !== null
+      ? formatBytes(details.size)
+      : typeof folderSize === "number"
+        ? formatBytes(folderSize)
+        : folderSize === "pending"
+          ? "Calculating…"
+          : null;
   return {
-    kind: details.size === null ? details.kind : `${details.kind} · ${formatBytes(details.size)}`,
+    kind: size === null ? details.kind : `${details.kind} · ${size}`,
     modified: details.modified === null ? "" : formatDate(details.modified),
+  };
+}
+
+/** A folder's size as a row shows it: bytes, "pending" while measured, null if unreadable. */
+export type FolderBytes = number | "pending" | null | undefined;
+
+/**
+ * Asks for folder sizes, passing on only the answers of the latest request: a newer
+ * one, made when the rows on screen changed, has already stopped the older walks.
+ * Resolves to true when this request was still the latest at its end, so the
+ * folders it got no size for can be marked unreadable.
+ */
+export function latestSizes(
+  ask: (paths: string[], onSize: (size: FolderSize) => void) => Promise<void> = folderSizes,
+): (paths: string[], onSize: (path: string, bytes: number) => void) => Promise<boolean> {
+  let latest = 0;
+  return async (paths, onSize) => {
+    const mine = ++latest;
+    try {
+      await ask(paths, (size) => {
+        if (mine === latest) {
+          onSize(size.path, size.bytes);
+        }
+      });
+    } catch {
+      // A failed request ends like one that found nothing.
+    }
+    return mine === latest;
   };
 }

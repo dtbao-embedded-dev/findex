@@ -13,6 +13,7 @@ use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
 use crate::model::find::{self, Answer};
+use crate::model::folder_size::{FolderSize, Sizer};
 use crate::model::inbox;
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
@@ -248,6 +249,24 @@ pub async fn describe_paths(app: AppHandle, paths: Vec<String>) -> AppResult<Vec
     })
     .await
     .map_err(|err| AppError::Invalid(format!("reading file details stopped: {err}")))?
+}
+
+/// Each folder's size, sent as its walk ends; a newer call stops the walks of this
+/// one. Off the async runtime: it waits on the disk.
+#[tauri::command]
+pub async fn folder_sizes(
+    app: AppHandle,
+    paths: Vec<String>,
+    on_size: Channel<FolderSize>,
+) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Sizer>().sizes(&paths, &|size| {
+            // Fails only once the window is gone: nothing left to tell.
+            let _ = on_size.send(size);
+        });
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("reading folder sizes stopped: {err}")))
 }
 
 #[tauri::command]

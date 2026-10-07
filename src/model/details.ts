@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 /** One result's details, as `model/details.rs` reads them from the disk. */
 export type Details = {
@@ -16,4 +16,17 @@ export type Details = {
 /** Details and tags for each path that still exists; deleted ones are left out. */
 export function describePaths(paths: string[]): Promise<Details[]> {
   return invoke<Details[]>("describe_paths", { paths });
+}
+
+/** One folder's size, as `FolderSize` in `model/folder_size.rs` sends it. */
+export type FolderSize = { path: string; bytes: number };
+
+/**
+ * Measures each folder in Rust, handing each size to `onSize` as its walk ends. A
+ * newer call stops the walks of this one. Resolves once every walk ended or stopped.
+ */
+export function folderSizes(paths: string[], onSize: (size: FolderSize) => void): Promise<void> {
+  const channel = new Channel<FolderSize>();
+  channel.onmessage = onSize;
+  return invoke<void>("folder_sizes", { paths, onSize: channel });
 }

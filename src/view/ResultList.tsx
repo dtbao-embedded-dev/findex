@@ -11,6 +11,8 @@ type Props = {
   selected: number;
   query: string;
   details: Record<string, Details>;
+  /** Folder sizes measured so far: bytes, or null when a folder cannot be read. */
+  sizes: Record<string, number | null>;
   /** The line above the rows, such as "Top 200 results · 12 ms"; null while searching. */
   meta: string | null;
   /** The rendered rows by index, for placing the menu at the selected one. */
@@ -39,6 +41,7 @@ export function ResultList({
   selected,
   query,
   details,
+  sizes,
   meta,
   rows,
   onSelect,
@@ -188,7 +191,12 @@ export function ResultList({
                   </span>
                 )}
               </span>
-              <HitMeta meta={describeHit(details[hit.path])} />
+              <HitMeta
+                meta={describeHit(
+                  details[hit.path],
+                  hit.isDir ? (hit.path in sizes ? sizes[hit.path] : "pending") : undefined,
+                )}
+              />
             </li>
           );
         })}

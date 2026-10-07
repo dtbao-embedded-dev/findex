@@ -202,6 +202,12 @@
   - **Settings → Explorer** turns the menu on or off (on by default) and says why if
     it cannot be set up. The menu follows the tags: a new or deleted tag shows there
     the next time it is opened. Uninstalling Findex removes the menu.
+- Folder results show their size beside their type ("File folder · 2.4 GB"). It is
+  measured in the background for the folders on screen, reads "Calculating…" until
+  known, and is remembered for five minutes. Junctions and links are not followed and
+  unreadable subfolders count as empty; a folder that cannot be read shows no size.
+  Measuring uses four threads of its own, so a large folder never slows the search,
+  and scrolling past a folder stops measuring it.
 
 ### Changed
 

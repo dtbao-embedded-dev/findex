@@ -34,6 +34,7 @@ pub fn run() -> tauri::Result<()> {
             index.start_saved(&db, commands::status_emitter(app.handle()))?;
             app.manage(db);
             app.manage(index);
+            app.manage(model::folder_size::Sizer::new()?);
             commands::watch_inbox(app.handle(), data.join("inbox"));
             if let Err(err) = commands::sync_menu(app.handle()) {
                 eprintln!("could not set up the Explorer menu: {err}");
@@ -68,6 +69,7 @@ pub fn run() -> tauri::Result<()> {
             commands::search_contents,
             commands::cancel_search,
             commands::describe_paths,
+            commands::folder_sizes,
             commands::reveal_path,
             commands::open_folder,
             commands::open_terminal,
