@@ -5,7 +5,7 @@ order: 2
 purpose: How the Tauri 2 + React 19 app is layered, which windows and screens exist, and which scaffold features are wired in.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/lib.rs, src-tauri/src/main.rs, src-tauri/tauri.conf.json, src-tauri/build.rs, src/main.tsx, src/splash.tsx, src/model/updater.ts, src/model/settings.ts, src/model/window.ts, src-tauri/src/tray.rs, src-tauri/src/splash.rs, src-tauri/src/model/db.rs, src-tauri/src/model/win32.rs, src-tauri/src/commands.rs, src-tauri/src/error.rs, src/view/App.tsx, src/view/TitleBar.tsx, src/view/SplashView.tsx, src/view/DrivePicker.tsx, src/view/ContextMenu.tsx, src/view/TagEditor.tsx, src/view/UpdateBanner.tsx, src/view/Toast.tsx, src/view/useDismiss.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx, src/view/StatusBar.tsx, src/view/Sidebar.tsx, src/view/FilterBar.tsx, src/view/ResultList.tsx, src/view/SettingsSheet.tsx, src/view/TagSettings.tsx, src/view/TagMark.tsx, src/presenter/aboutPresenter.ts, src/presenter/listPresenter.ts, src/presenter/settingsPresenter.ts, src/presenter/filterPresenter.ts, src/styles.css, vite.config.ts, splash.html
+source: src-tauri/src/lib.rs, src-tauri/src/main.rs, src-tauri/tauri.conf.json, src-tauri/build.rs, src/main.tsx, src/splash.tsx, src/model/updater.ts, src/model/settings.ts, src/model/window.ts, src-tauri/src/tray.rs, src-tauri/src/splash.rs, src-tauri/src/model/db.rs, src-tauri/src/model/win32.rs, src-tauri/src/commands.rs, src-tauri/src/error.rs, src/view/App.tsx, src/view/TitleBar.tsx, src/view/SplashView.tsx, src/view/DrivePicker.tsx, src/view/ContextMenu.tsx, src/view/TagEditor.tsx, src/view/UpdateBanner.tsx, src/view/Toast.tsx, src/view/useDismiss.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx, src/view/StatusBar.tsx, src/view/Sidebar.tsx, src/view/FilterBar.tsx, src/view/ResultList.tsx, src/view/SettingsSheet.tsx, src/view/TagSettings.tsx, src/view/TagMark.tsx, src/presenter/aboutPresenter.ts, src/presenter/listPresenter.ts, src/presenter/contentPresenter.ts, src/presenter/filterPresenter.ts, src/styles.css, vite.config.ts, splash.html
 confidence: confirmed
 verified_at: 2026-10-07
 keywords: tauri, react, pnpm, MVP, sidebar, filter bar, settings sheet, virtual list, re-scan, tray, single-instance, updater, sqlite, titlebar, AppResult, splash, search, drive picker, context menu, tags, apple-design, unsafe, win32
@@ -87,18 +87,21 @@ The UI follows the `apple-design` skill; the tokens live on `:root` in `src/styl
   `status.busy`) and a Settings gear left of the window buttons.
 - **Workspace** (`SearchView.tsx`): a grid of `Sidebar` (Location: `DrivePicker` as a
   row; Tags: the catalog, presets as coloured dots, a press toggles the tag filter)
-  and the search pane: field, `FilterBar` (date popover, All/Files/Folders segmented
-  control, tag popover, Clear filters) and `ResultList`.
+  and the search pane: field, `FilterBar` (Name/Contents segmented control, date
+  popover, All/Files/Folders segmented control, Type popover, tag popover, Clear
+  filters — which keeps the mode) and `ResultList`.
 - **`ResultList.tsx`:** virtualized; fixed-height rows placed by index
   (`listPresenter.visibleRange`, `scrollToShow`), details read only for the rows in
   view in chunks of 50 (`detailsWindow`). `rows` ref keeps the rendered row elements
-  by index for the keyboard-opened menu.
+  by index for the keyboard-opened menu. A row with `line` (a content match) shows
+  the line number and the snippet in place of the folder, which moves to its tooltip.
+  Double-click does nothing.
 - **`SettingsSheet.tsx`:** a modal sheet under the title bar (scrim, Esc, Tab trap,
-  focus returns to the opener) with Search (results per search 200..10000: field,
-  slider, preset chips) and `TagSettings` (colour tags; create and delete custom tags,
-  delete confirmed inline).
-- **State held by `App`:** the results limit and the tag catalog, shared by the sheet,
-  the sidebar, the filters and the tag editor (`refreshTags`).
+  focus returns to the opener) holding `TagSettings` (the preset tags as pills; create
+  and delete custom tags, delete confirmed inline). The results-limit section was
+  removed in d30ce23.
+- **State held by `App`:** the tag catalog, shared by the sheet, the sidebar, the
+  filters and the tag editor (`refreshTags`).
 - **Stacking:** the sidebar and the search header carry `z-index`, because their
   `backdrop-filter` / mask make stacking contexts that otherwise let the results paint
   over the drive menu and the filter popovers (found by screenshot, fixed in T1).

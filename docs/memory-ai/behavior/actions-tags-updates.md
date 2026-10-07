@@ -8,7 +8,7 @@ updated: 2026-10-07
 source: src-tauri/src/model/launch.rs, src-tauri/src/model/win32.rs, src-tauri/src/model/details.rs, src-tauri/src/model/tags.rs, src-tauri/src/model/find.rs, src/view/TagEditor.tsx, src/view/TagSettings.tsx, src-tauri/src/model/db.rs, src-tauri/src/tray.rs, src/presenter/menuPresenter.ts, src/presenter/tagPresenter.ts, src/presenter/updatePresenter.ts, src/presenter/searchPresenter.ts, src/model/updater.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: context menu, tag catalog, colour tags, preset, create_tag, delete_tag, open_claude, open_terminal, create_process, de-elevate, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, wt.exe, details, SHGetFileInfoW, folder_tag, tag:, updater, save_index, check-updates, blockWebMenu
+keywords: context menu, tag catalog, preset tags, Working, Doc, migration 4, preset, create_tag, delete_tag, open_claude, open_terminal, create_process, de-elevate, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, wt.exe, details, SHGetFileInfoW, folder_tag, tag:, updater, save_index, check-updates, blockWebMenu
 ---
 
 # Actions, Tags and Updates
@@ -61,16 +61,21 @@ keywords: context menu, tag catalog, colour tags, preset, create_tag, delete_tag
 
 ## Tag catalog (2026-10-07, `feat/ui-redesign-filters`)
 
-- **Two kinds:** seven colour presets (red, orange, yellow, green, blue, purple, gray;
-  cannot be deleted, drawn as dots with light/dark system colours from
-  `--tag-<colour>`) and custom tags.
+- **Two kinds:** seven named presets and custom tags. Since migration 4 (branch
+  `feat/content-search-paging`, 6de5172, by the user's choice on 2026-10-07) the
+  presets are Working (blue), Doc (green), Important (red), Todo (orange), Review
+  (yellow), Personal (purple), Archive (gray): stored lower case, shown capitalised
+  (`tagName`), drawn with a dot from `--tag-<colour>`, and they cannot be deleted. The
+  earlier colour-named presets (red … gray) moved their folders to the preset of the
+  same colour; typing `red` now makes a custom tag.
 - **Where custom tags come from:** Settings → Tags (`create_tag`, refusing an existing
   name), or a new name typed in the tag editor (`tags::add` registers it).
 - **Deleting** (`tags::delete`, one transaction): removes the tag from `folder_tag` and
   `tag`; the UI asks first ("Delete #fw? It comes off 1 folder."). A filter on a deleted
   tag is dropped (`keepKnown`).
-- **Tag editor:** colour presets as a row of toggle dots; custom tags as chips; custom
-  suggestions only.
+- **Tag editor:** presets as a row of toggle pills (dot + name, ringed when on);
+  custom tags as chips; custom suggestions only. Settings lists the presets as static
+  pills.
 - **Checked over CDP (2026-10-07):** create, duplicate refused, tag Red + #fw, filter
   by Red, delete #fw, preset delete refused, catalog kept across a restart.
 

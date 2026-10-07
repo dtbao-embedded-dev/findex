@@ -21,8 +21,10 @@ keywords: findex, file search, content search, folder tags, quick open, launcher
 Stated by the user on 2026-10-07 when the repository was scaffolded. Name search is
 built (see [ADR-0002](../adr/adr-0002-name-index.md)). Folder tags and quick open
 (Explorer, terminal, Claude Code, copy path or name) were built later the same day (see
-[actions, tags and updates](../behavior/actions-tags-updates.md)). Opening in any
-chosen app, and content search, are not built yet.
+[actions, tags and updates](../behavior/actions-tags-updates.md)). Content search was
+built on branch `feat/content-search-paging` (2026-10-07) as a direct, streamed scan
+with no index (see [search and indexing](../behavior/search-and-indexing.md)).
+Opening in any chosen app is not built yet.
 
 | Capability | What the user asked for |
 |------------|-------------------------|
@@ -33,10 +35,13 @@ chosen app, and content search, are not built yet.
 
 ## Reproduction notes
 
-- Tags and the content index must persist across restarts; this is why the `sqlite`
-  feature was chosen (see [adr-0001](../adr/adr-0001-scaffold-choices.md)).
-- The full-text index approach (SQLite FTS5 vs a dedicated engine) is open and
-  unresolved until decided.
+- Tags must persist across restarts; this is why the `sqlite` feature was chosen (see
+  [adr-0001](../adr/adr-0001-scaffold-choices.md)).
+- Content search engine, decided by the user on 2026-10-07: scan files on demand and
+  stream results (no FTS5, no dedicated engine). Rationale: works at once with nothing
+  to build or keep current; cost: a whole-drive scan takes minutes on a cold disk, so
+  the Type filter and tags are the way to narrow it. A persistent index stays possible
+  later if scans prove too slow.
 - Quick open needed no new Tauri capability: launches go through Rust commands
   (`launch.rs`), so `capabilities/default.json` was not widened.
 

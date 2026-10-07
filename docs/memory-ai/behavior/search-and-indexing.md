@@ -5,10 +5,10 @@ order: 1
 purpose: What each unit of name search does — drive lifecycle, query ranking, stale-result handling, status wording, active drive and splash rules, reveal.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/index/service.rs, src-tauri/src/model/dated.rs, src-tauri/src/model/find.rs, src-tauri/src/model/settings.rs, src-tauri/src/model/index/store.rs, src/presenter/filterPresenter.ts, src/presenter/listPresenter.ts, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/drivePresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
+source: src-tauri/src/model/index/service.rs, src-tauri/src/model/dated.rs, src-tauri/src/model/find.rs, src-tauri/src/model/contents.rs, src/presenter/contentPresenter.ts, src-tauri/src/model/index/store.rs, src/presenter/filterPresenter.ts, src/presenter/listPresenter.ts, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/drivePresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: ranking, tier, filters, date filter, partial, rescan, resume_point, results limit, heap_bytes, latestOnly, keepSelection, highlight, summarize, watchStatus, ensure_active, default_letter, revealMain, lifecycle, gap, resume
+keywords: ranking, tier, filters, date filter, partial, rescan, resume_point, paging, total, more, content search, scan, Contents mode, heap_bytes, latestOnly, keepSelection, highlight, summarize, watchStatus, ensure_active, default_letter, revealMain, lifecycle, gap, resume
 ---
 
 # Search and Indexing Behavior
@@ -64,25 +64,33 @@ keywords: ranking, tier, filters, date filter, partial, rescan, resume_point, re
   Terms are summed.
 - **Order:** tier descending, then shorter name (in chars), then folders first, then
   alphabetical, then volume and id.
-- **Top-K:** a per-chunk max-heap of `limit` candidates is merged at the end. Paths are
-  built only for the winners.
+- **Top-K and count:** a per-chunk max-heap of `offset+count` candidates is merged at
+  the end; every chunk also counts its matches, so the total is exact. Paths are built
+  only for the requested page (d30ce23). A deep page holds `offset+count` candidates
+  per chunk, so its memory grows with how far the list was scrolled.
 - **Cancellation:** checked at chunk start and every 1024 matches. A cancelled query
   returns `None`.
 
-## Filters, limit, re-scan and memory (2026-10-07, `feat/ui-redesign-filters`)
+## Filters, paging, re-scan and memory (2026-10-07)
 
 - **Filters:** `search::Query::narrow` merges the filter bar (kind replaces `type:`,
-  tags join `tag:`). A date range goes through `dated::keep` on a larger name pool;
-  see [commands and events](../interface/commands-and-events.md). A date or kind with
-  no name lists nothing (`canSearch`); a tag alone lists tagged folders.
+  tags join `tag:`, file types join `ext:`). A date range goes through `dated::keep`
+  on a larger name pool; see [commands and events](../interface/commands-and-events.md).
+  A date or kind with no name lists nothing (`canSearch`); a tag alone lists tagged
+  folders, and a type alone every file of that type (f1cf5bb).
 - **Cancellation:** `IndexService::begin_search` bumps the query counter and returns
   the "replaced?" check, passed to `search::run` and to `dated::keep`. A tag query
   also begins a search, so it cancels an older index search.
 - **Measured (debug build, E: walk, 1.18 M names):** `report` + Last 30 days 36 ms;
-  `e` + last day (pool of 20 000 checked) about 0.8 s with `partial`; `a` at 10 000
-  results 0.39 s against 0.07 s at 200.
-- **Results limit:** `settings::results_limit` (key `search.results_limit`), read by
-  `find::search_saved` on every search; the frontend re-asks when it changes.
+  `e` + last day (pool of 20 000 checked) about 0.8 s with `partial`.
+- **No cap (branch `feat/content-search-paging`, d30ce23):** the results limit
+  setting is gone. The frontend asks `PAGE` = 500 rows, then the next page when
+  `needsMore(shown.last, loaded, more)` (within 100 rows of the end). Checked over CDP
+  on E: `e` reported 849,123 results and loaded 25 contiguous pages (12,500 unique
+  paths); `readme` loaded to its total, 11,555 rows. A background refresh asks
+  `max(PAGE, rows loaded)` so it never shortens the list.
+- **Enter and double-click** select only; they open or reveal nothing (8992a8c).
+  Every action goes through the right-click menu.
 - **Re-scan:** `IndexService::rescan` starts a run with `rebuild`; `resume_point`
   returns `None` for it, so an NTFS drive is read from its MFT again instead of
   resuming from the journal. `load_snapshot` keeps the installed index searchable
@@ -92,17 +100,21 @@ keywords: ranking, tier, filters, date filter, partial, rescan, resume_point, re
 
 ## Frontend
 
-- **`latestOnly`:** each call takes a sequence number. An answer is used only if its
-  number is still the latest and Rust did not return null. An empty query clears the
-  results without IPC.
+- **`latestOnly`:** returns `{search, more, stop}` sharing one sequence number.
+  `search` takes a new number; an answer is used only if it is still the latest and
+  Rust did not return null. `more(query, filters, loaded)` asks the page after
+  `loaded` under the current number and is dropped once a newer search started;
+  `stop` bumps the number when a content search takes over. `more` asks nothing while
+  a newer search has not answered (`answered !== latest`, bbf3c93), so two queries'
+  rows never mix. An empty query clears the results without IPC.
   - **Retry:** if the latest call gets null, it asks once more. Calls can reach Rust
     out of order, so an older search may have cancelled the newest one there.
 - **Refresh on `total` change** (`SearchView`): re-runs the query on screen and keeps
   the selected path via `keepSelection`.
 - **`highlight`:** marks the first occurrence of each non-filter term. It skips
   highlighting when lowercasing changes the name's length.
-- **`describeResults`:** "N result(s) · X ms", or "Top 200 results" when the page is
-  full.
+- **`describeResults`:** "N result(s) · X ms" with N the exact total; "N+ results"
+  when a date filter left the total unknown and more pages follow.
 - **`summarize`:**
   - **No drives:** "No drives chosen".
   - **While indexing:** "Indexing C: n · E: n".
@@ -122,3 +134,36 @@ keywords: ranking, tier, filters, date filter, partial, rescan, resume_point, re
   main.
 - **Reveal:** refused when the path no longer exists; otherwise
   `explorer.exe /select,"<path>"`, passed with `raw_arg`.
+
+## Content search (branch `feat/content-search-paging`, 8c870b6, 9fec65f)
+
+- **Engine (`contents::scan`):** no index. It begins its own search token, sends the
+  name matches first (`find::answer` with `count = usize::MAX`, 500 per batch), then
+  collects candidate paths with `IndexService::files_where` under the volumes read
+  lock and releases it before any file is opened. Files are read on a rayon pool of
+  `min(cores, 8)` threads; every term must match (`regex::bytes`, case-insensitive,
+  Unicode); the first term's first match gives the line and a snippet (40 chars
+  before, 160 in all). Skipped: over 8 MiB, a NUL in the first 8 KiB, types outside
+  the text allowlist (unless the Type filter names them), folders, and name matches
+  already sent. Tags keep files under the tagged folders; a date is checked on the
+  file's metadata.
+- **Batches:** flushed at 64 hits or 150 ms after each file looked at (read or
+  skipped, 488d425); the last one has `done: true`. A stopped scan sends nothing more
+  (tested by mutation: removing the guard fails `a_stopped_scan_sends_nothing_more`).
+  A `begin_search` landing between the check and the send can let one batch through;
+  the frontend gate (`mine !== latest`) is what drops it.
+- **Stopping:** `latestScan` calls `cancel_search` when a running scan is stopped or
+  the field is cleared (only then, so a name search is never cancelled by it).
+  Checked: 42 MB read in 2 s while scanning E:, 0 MB in the 2 s after clearing.
+- **Frontend (`contentPresenter.latestScan`):** waits 250 ms after typing, drops
+  batches of a superseded scan, grows one array in place (a `Set` of paths skips
+  repeats) and copies it only when it redraws, at most every 100 ms plus once at the
+  end. `SearchView` never auto-refreshes a content
+  search on index changes.
+- **Measured (debug, unelevated, E:):** 49,585 `.c` files read in 36.7 s cold and
+  3.3 s warm; with `esp_event_base_t`, 204 rows were on screen after 1 s of reading.
+  The whole of E: holds 472,992 text-type files, so an unfiltered scan takes minutes
+  cold.
+- **Known costs:** a one-letter content query lists every name match first (e.g.
+  ~680 k for `a` on E:) before reading any file; a dated content query reads the
+  mtime of every name match.
