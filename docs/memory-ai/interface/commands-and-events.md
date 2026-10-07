@@ -5,10 +5,10 @@ order: 1
 purpose: Every Tauri command, event and setting key the frontend and Rust share, with argument and result shapes.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/commands.rs, src-tauri/src/lib.rs, src-tauri/src/model/contents.rs, src-tauri/src/model/dated.rs, src-tauri/src/model/db.rs, src-tauri/src/tray.rs, src-tauri/src/model/drives.rs, src-tauri/src/model/find.rs, src-tauri/src/model/tags.rs, src-tauri/src/model/details.rs, src-tauri/src/model/launch.rs, src-tauri/src/model/search.rs, src/model/drives.ts, src/model/index.ts, src/model/search.ts, src/model/contents.ts, src/model/details.ts, src/model/tags.ts, src/model/launch.ts, src/model/updater.ts
+source: src-tauri/src/commands.rs, src-tauri/src/lib.rs, src-tauri/src/model/contents.rs, src-tauri/src/model/dated.rs, src-tauri/src/model/db.rs, src-tauri/src/tray.rs, src-tauri/src/model/drives.rs, src-tauri/src/model/find.rs, src-tauri/src/model/tags.rs, src-tauri/src/model/details.rs, src-tauri/src/model/launch.rs, src-tauri/src/model/search.rs, src-tauri/src/model/folder_size.rs, src-tauri/src/model/shell_menu.rs, src-tauri/src/model/inbox.rs, src/model/explorer.ts, src/model/settings.ts, src/presenter/historyPresenter.ts, src/presenter/themePresenter.ts, src/model/drives.ts, src/model/index.ts, src/model/search.ts, src/model/contents.ts, src/model/details.ts, src/model/tags.ts, src/model/launch.ts, src/model/updater.ts
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: invoke, command, event, index-status, check-updates, scan.drives, search_contents, Channel, Batch, Filters, exts, Answer, total, more, offset, indexBytes, rescan_drive, tag_catalog, create_tag, delete_tag, get_active_drive, set_active_drive, search_names, describe_paths, add_tag, open_terminal, open_claude, save_index, tag:
+keywords: invoke, command, event, index-status, check-updates, scan.drives, search_contents, Channel, Batch, Filters, exts, Answer, total, more, offset, indexBytes, rescan_drive, tag_catalog, create_tag, delete_tag, get_active_drive, set_active_drive, search_names, describe_paths, add_tag, open_terminal, open_claude, open_vscode, folder_sizes, FolderSize, explorer_menu, set_explorer_menu, sync_explorer_menu, tags-changed, search.history, appearance.theme, explorer.menu, save_index, tag:
 ---
 
 # Commands and Events
@@ -36,11 +36,16 @@ keywords: invoke, command, event, index-status, check-updates, scan.drives, sear
 | `open_folder` | `path: string` | `()` | `launch::open_folder` (`explorer.exe "<dir>"`) |
 | `open_terminal` | `path: string` | `()` | `launch::open_terminal` (wt.exe `-d .`, else `powershell.exe -NoExit`) |
 | `open_claude` | `path: string` | `()`; error if `claude` is not on PATH | `launch::open_claude` (a terminal running the `claude` found on PATH, by full path) |
+| `open_vscode` | `path: string` (folder or file) | `()`; error if Code.exe is not found | `launch::open_vscode`: `Code.exe` beside the `code` shim on PATH, else `%LOCALAPPDATA%/Programs/Microsoft VS Code` or `%ProgramFiles%/Microsoft VS Code`; started unelevated in the folder (or the file's folder) with `.` / `.\<name>` (443e803) |
+| `folder_sizes` | `paths: string[], onSize: Channel<FolderSize>` | `()` when every walk ended or was stopped; `FolderSize` = `{path, bytes}` per folder as its walk ends; unreadable folders send nothing | `folder_size::Sizer::sizes` on `spawn_blocking`: own 4-thread pool, links not followed, each call stops the previous call's walks, 5-minute cache (76f3831) |
+| `explorer_menu` | — | `boolean` (on unless setting `explorer.menu` is `"off"`) | `shell_menu::enabled` |
+| `set_explorer_menu` | `enabled: boolean` | `()`; error if the helper is missing | `shell_menu::set_enabled` (saves, then `sync`) |
+| `sync_explorer_menu` | — | `()` | `shell_menu::sync` (rewrites the HKCU verbs for the current tags) |
 | `add_tag`, `remove_tag` | `path, tag` | the folder's tags, sorted | `tags::add`, `tags::remove` |
 | `tag_catalog` | — | `TagInfo[]` `{tag, color \| null, preset, folders}`: the 7 named presets in fixed order, then custom tags by name | `tags::catalog` |
 | `create_tag` | `tag` | the catalog; refuses an invalid or existing tag | `tags::create` |
 | `delete_tag` | `tag` | the catalog; refuses a preset or unknown tag; takes the tag off every folder | `tags::delete` |
-| `get_setting`, `set_setting` | key / key, value | scaffold; not called by the frontend | `Db` |
+| `get_setting`, `set_setting` | key / key, value | `string \| null` / `()` | `Db`; used by the frontend for `search.history` and `appearance.theme` |
 
 Removed on 2026-10-07: `get_scan_drives`, `set_scan_drives` and `start_index`, with
 the setup screen; `list_tags` (replaced by `tag_catalog`, branch
@@ -89,11 +94,19 @@ once a second for live updates.
 No payload. Emitted by the tray's "Check for updates" (`tray.rs`); the frontend runs a
 manual update check (`createUpdater().check(true)`).
 
+## Event `tags-changed`
+
+No payload. Emitted by the inbox watcher (`commands::watch_inbox`) after a request from
+Explorer's menu tagged a folder; `tagPresenter.watchTags` reloads the catalog.
+
 ## Settings keys
 
 | Key | Value |
 |-----|-------|
 | `scan.drives` | JSON array holding the one active drive, e.g. `["C"]`. Absent until the first launch, when Rust saves the system drive. An older multi-drive list keeps only its first letter. |
+| `search.history` | JSON array of recent queries, newest first, at most 20 (`historyPresenter`). |
+| `appearance.theme` | `graphite` (default) \| `midnight` \| `aurora` \| `violet` \| `forest` \| `ember`; anything else reads as graphite (`themePresenter.toTheme`). |
+| `explorer.menu` | `"on"` / `"off"`; absent means on (`shell_menu::enabled`). |
 | `search.results_limit` | No longer read (removed in d30ce23); a value saved by an earlier build stays in the table, unused. |
 
 ## Tables

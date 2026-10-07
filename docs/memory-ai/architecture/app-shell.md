@@ -5,10 +5,10 @@ order: 2
 purpose: How the Tauri 2 + React 19 app is layered, which windows and screens exist, and which scaffold features are wired in.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/lib.rs, src-tauri/src/main.rs, src-tauri/tauri.conf.json, src-tauri/build.rs, src/main.tsx, src/splash.tsx, src/model/updater.ts, src/model/settings.ts, src/model/window.ts, src-tauri/src/tray.rs, src-tauri/src/splash.rs, src-tauri/src/model/db.rs, src-tauri/src/model/win32.rs, src-tauri/src/commands.rs, src-tauri/src/error.rs, src/view/App.tsx, src/view/TitleBar.tsx, src/view/SplashView.tsx, src/view/DrivePicker.tsx, src/view/ContextMenu.tsx, src/view/TagEditor.tsx, src/view/UpdateBanner.tsx, src/view/Toast.tsx, src/view/useDismiss.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx, src/view/StatusBar.tsx, src/view/Sidebar.tsx, src/view/FilterBar.tsx, src/view/ResultList.tsx, src/view/SettingsSheet.tsx, src/view/TagSettings.tsx, src/view/TagMark.tsx, src/presenter/aboutPresenter.ts, src/presenter/listPresenter.ts, src/presenter/contentPresenter.ts, src/presenter/filterPresenter.ts, src/styles.css, vite.config.ts, splash.html
+source: src-tauri/src/lib.rs, src-tauri/src/main.rs, src-tauri/tauri.conf.json, src-tauri/build.rs, src/main.tsx, src/splash.tsx, src/model/updater.ts, src/model/settings.ts, src/model/window.ts, src-tauri/src/tray.rs, src-tauri/src/splash.rs, src-tauri/src/model/db.rs, src-tauri/src/model/win32.rs, src-tauri/src/commands.rs, src-tauri/src/error.rs, src/view/App.tsx, src/view/TitleBar.tsx, src/view/SplashView.tsx, src/view/DrivePicker.tsx, src/view/ContextMenu.tsx, src/view/TagEditor.tsx, src/view/UpdateBanner.tsx, src/view/Toast.tsx, src/view/useDismiss.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx, src/view/StatusBar.tsx, src/view/FilterBar.tsx, src/view/HistoryMenu.tsx, src/view/AppearanceSettings.tsx, src/view/ExplorerSettings.tsx, src/presenter/themePresenter.ts, src/presenter/historyPresenter.ts, src/presenter/updatePresenter.ts, src/presenter/drivePresenter.ts, src/view/ResultList.tsx, src/view/SettingsSheet.tsx, src/view/TagSettings.tsx, src/view/TagMark.tsx, src/presenter/aboutPresenter.ts, src/presenter/listPresenter.ts, src/presenter/contentPresenter.ts, src/presenter/filterPresenter.ts, src/styles.css, vite.config.ts, splash.html
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: tauri, react, pnpm, MVP, sidebar, filter bar, settings sheet, virtual list, re-scan, tray, single-instance, updater, sqlite, titlebar, AppResult, splash, search, drive picker, context menu, tags, apple-design, unsafe, win32
+keywords: tauri, react, pnpm, MVP, search row, data-theme, appearance.theme, dark only, search.history, back-to-top, update button, status-copyright, workspace, filter bar, settings sheet, virtual list, re-scan, tray, single-instance, updater, sqlite, titlebar, AppResult, splash, search, drive picker, context menu, tags, apple-design, unsafe, win32
 ---
 
 # App Shell
@@ -102,9 +102,31 @@ The UI follows the `apple-design` skill; the tokens live on `:root` in `src/styl
   removed in d30ce23.
 - **State held by `App`:** the tag catalog, shared by the sheet, the sidebar, the
   filters and the tag editor (`refreshTags`).
+- **Superseded (branch `feat/toolbar-themes-quick-tag`, 8c10406):** the sidebar and
+  the title-bar re-scan button are gone; see the next section.
 - **Stacking:** the sidebar and the search header carry `z-index`, because their
   `backdrop-filter` / mask make stacking contexts that otherwise let the results paint
   over the drive menu and the filter popovers (found by screenshot, fixed in T1).
+
+## Main window after branch `feat/toolbar-themes-quick-tag` (2026-10-07)
+
+- **Search row** (`SearchView.tsx` `.search-row`): compact `DrivePicker` (glyph +
+  `driveLetterLabel`, e.g. `E:`; full name and free space in the tooltip), the field
+  (now a `div.search-field`, holding `HistoryMenu`), then the re-scan `.search-tool`.
+  `Sidebar.tsx` was deleted; tags filter through the FilterBar Tags menu and chips.
+- **Title bar tools:** update button (`updatePresenter.updateButton`: check / checking /
+  accent badge while an update is `ready` or `deferred`), then Settings.
+- **Settings sheet sections:** Appearance (`AppearanceSettings`, six swatches), Tags,
+  Explorer (`ExplorerSettings` switch, see [Explorer quick tag](../behavior/explorer-quick-tag.md)).
+- **Status bar:** ends with `title.copyright` (`.status-copyright`).
+- **Results:** folder sizes and the back-to-top button, see
+  [search extras](../behavior/search-extras.md).
+- **Themes:** dark only (`color-scheme: dark`, light palette removed). Graphite is the
+  `:root, [data-theme="graphite"]` default; Midnight, Aurora, Violet, Forest, Ember
+  override surfaces/accent under `[data-theme]`; `App` sets `<html data-theme>` from
+  setting `appearance.theme` before `revealMain`; the splash applies it too. Light
+  accents (Aurora, Forest, Ember) use a near-black `--on-accent`. The contrast and
+  transparency media blocks come after the themes so they still win.
 
 ## Dependencies & build
 
@@ -113,9 +135,11 @@ The UI follows the `apple-design` skill; the tokens live on `:root` in `src/styl
 - **Vite:** builds two pages (`index.html`, `splash.html`).
 - **Rust crates:** `rayon`, `memchr`, and `windows-sys 0.61` (Win32 Foundation,
   Security, Storage_FileSystem, System_Com, System_IO, System_Ioctl,
-  System_Diagnostics_Debug, System_Threading, System_WindowsProgramming, UI_Shell,
+  System_Diagnostics_Debug, System_Registry, System_Threading, System_WindowsProgramming, UI_Shell,
   UI_WindowsAndMessaging).
-- **Target and CI:** Windows-only NSIS bundle; CI on `windows-latest`. Dev server port
+- **Workspace:** `src-tauri/Cargo.toml` is also a workspace root with member
+  `tag-helper` (see [ADR-0003](../adr/adr-0003-explorer-tag-helper.md)).
+- **Target and CI:** Windows-only NSIS bundle (uninstall hook `windows/hooks.nsh`); CI on `windows-latest`. Dev server port
   1832.
 - **Release-mode tests:** run them with `--lib`. The release app binary may require
   elevation.
