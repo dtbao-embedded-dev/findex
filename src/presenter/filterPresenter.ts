@@ -47,10 +47,13 @@ const NONE: Span = { from: null, to: null };
 /** Local midnight of the given day; JavaScript rolls day 0 or 32 over correctly. */
 const midnight = (y: number, m: number, d: number) => new Date(y, m, d).getTime();
 
+/** The earliest year a date filter takes: files carry no dates before 1970. */
+const FIRST_YEAR = 1970;
+
 /** `2026-03-05` as a local date, or null when it is not a real day. */
 function parseDay(text: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  if (!match) {
+  if (!match || Number(match[1]) < FIRST_YEAR) {
     return null;
   }
   const [y, m, d] = [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
@@ -62,11 +65,13 @@ function parseDay(text: string): Date | null {
 function parseMonth(text: string): [number, number] | null {
   const match = /^(\d{4})-(\d{2})$/.exec(text);
   const month = Number(match?.[2]) - 1;
-  return match && month >= 0 && month <= 11 ? [Number(match[1]), month] : null;
+  return match && month >= 0 && month <= 11 && Number(match[1]) >= FIRST_YEAR
+    ? [Number(match[1]), month]
+    : null;
 }
 
 function parseYear(text: string): number | null {
-  return /^\d{4}$/.test(text) ? Number(text) : null;
+  return /^\d{4}$/.test(text) && Number(text) >= FIRST_YEAR ? Number(text) : null;
 }
 
 /**

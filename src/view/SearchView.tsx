@@ -20,6 +20,7 @@ import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter"
 import {
   initialFilters,
   isFiltered,
+  narrowsDate,
   toFilters,
   toggleTag,
   type FilterState,
@@ -72,6 +73,10 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
   // The rows in view, whose details are read; the rest are read as they scroll in.
   const [shown, setShown] = useState<Rows>({ first: 0, last: 0 });
   const detailsFor = useRef(state.hits);
+  // Set when new results arrive; the next details answer then replaces, not merges.
+  const resetDetails = useRef(false);
+  // Bumped to make the list scroll the selected row back into view.
+  const [revealTick, setRevealTick] = useState(0);
   const field = useRef<HTMLInputElement>(null);
   const rows = useRef<(HTMLLIElement | null)[]>([]);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
@@ -127,11 +132,15 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
   // Details follow the rows in view; until they arrive a row keeps what it showed
   // before. New results replace the details read so far, a scroll adds to them.
   useEffect(() => {
-    const fresh = detailsFor.current !== state.hits;
-    detailsFor.current = state.hits;
+    if (detailsFor.current !== state.hits) {
+      detailsFor.current = state.hits;
+      resetDetails.current = true;
+    }
     void loadDetails(state.hits.slice(shown.first, shown.last)).then((found) => {
       if (found) {
-        setDetails((d) => (fresh ? found : { ...d, ...found }));
+        const reset = resetDetails.current;
+        resetDetails.current = false;
+        setDetails((d) => (reset ? found : { ...d, ...found }));
       }
     });
     // The tags change too: a deleted tag must leave the rows that showed it.
@@ -152,9 +161,8 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
     run(state.query, next);
   };
 
-  // A drive finishing, its snapshot loading, or files changing on disk change what
-  // can be found: answer the query on screen again, keeping the selected file.
-  useEffect(() => {
+  // Answers the query on screen again, keeping the selected file.
+  const refresh = () => {
     if (!canSearch(state.query, filters)) {
       return;
     }
@@ -167,9 +175,20 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
         }));
       }
     });
-    // Only a change in the searchable count or the results limit refreshes here;
-    // typing runs on its own.
-  }, [total, limit]);
+  };
+
+  // A drive finishing, its snapshot loading, or files changing on disk change what
+  // can be found. A dated search is left alone: it reads thousands of dates from the
+  // disk, and live updates would repeat that every second while files change.
+  useEffect(() => {
+    if (!narrowsDate(filters.date)) {
+      refresh();
+    }
+    // Only a change in the searchable count refreshes here; typing runs on its own.
+  }, [total]);
+
+  // A new results limit applies to the search on screen at once.
+  useEffect(refresh, [limit]);
 
   const reveal = (index: number) => {
     const hit = state.hits[index];
@@ -183,11 +202,22 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
   };
 
   const openMenuAtSelection = () => {
-    const row = rows.current[state.selected];
-    const hit = state.hits[state.selected];
-    if (row && hit) {
-      const box = row.getBoundingClientRect();
-      setMenu({ at: { x: box.left + 40, y: box.bottom }, hit });
+    const index = state.selected;
+    const hit = state.hits[index];
+    const place = () => {
+      const row = rows.current[index];
+      if (row && hit) {
+        const box = row.getBoundingClientRect();
+        setMenu({ at: { x: box.left + 40, y: box.bottom }, hit });
+        return true;
+      }
+      return false;
+    };
+    // A row scrolled out of view is not rendered: scroll it back, then place the
+    // menu once the list has drawn it.
+    if (!place()) {
+      setRevealTick((t) => t + 1);
+      requestAnimationFrame(() => requestAnimationFrame(place));
     }
   };
 
@@ -221,7 +251,12 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
     } else if (event.key === "Enter") {
       reveal(state.selected);
     } else if (event.key === "Escape") {
-      run("");
+      // A first Esc clears the name; a second one clears the filters as well.
+      if (state.query === "" && isFiltered(filters)) {
+        changeFilters(initialFilters);
+      } else {
+        run("");
+      }
     }
   };
 
@@ -302,6 +337,7 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
             }}
             onTag={searchTag}
             tagColors={colors}
+            reveal={revealTick}
             onDetailsWindow={setShown}
           />
         ) : (

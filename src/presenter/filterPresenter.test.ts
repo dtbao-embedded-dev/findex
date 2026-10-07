@@ -49,6 +49,10 @@ describe("dateRange", () => {
       { kind: "month", month: "2026-13" },
       { kind: "year", year: "" },
       { kind: "year", year: "26" },
+      // Two-digit years would land in the 1900s: anything before 1970 is refused.
+      { kind: "year", year: "0050" },
+      { kind: "month", month: "0050-03" },
+      { kind: "day", date: "0050-03-01" },
       { kind: "range", from: "", to: "" },
     ] as DateChoice[]) {
       expect(dateRange(choice, NOW)).toEqual({ from: null, to: null });

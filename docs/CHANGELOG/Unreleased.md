@@ -118,6 +118,10 @@
     second on 1.2 million names.
   - **Without a name:** a date or kind alone lists nothing, since there is no name to
     look for; a tag alone lists the folders carrying it.
+  - **Esc:** the first Esc clears the name, a second one clears the filters.
+  - **While files change:** a search with a date filter is not re-run on its own as
+    files change, since each run reads thousands of dates from the disk; typing or
+    changing a filter runs it again. Custom dates before 1970 are not accepted.
 - Settings (the gear in the title bar) open as a sheet over the window. The first
   setting is **Results per search**, from 200 (the default) to 10,000, typed, slid or
   picked from 200 / 1,000 / 5,000 / 10,000. It applies to the search on screen at

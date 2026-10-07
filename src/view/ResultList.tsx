@@ -21,6 +21,8 @@ type Props = {
   onTag: (tag: string) => void;
   /** The colour of each colour tag, by name. */
   tagColors: Record<string, string>;
+  /** Changes when the selected row must be scrolled back into view. */
+  reveal: number;
   /** The rows whose details are worth reading, reported as the view scrolls. */
   onDetailsWindow: (rows: Rows) => void;
 };
@@ -45,6 +47,7 @@ export function ResultList({
   onMenu,
   onTag,
   tagColors,
+  reveal,
   onDetailsWindow,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -66,14 +69,25 @@ export function ResultList({
     return () => observer.disconnect();
   }, []);
 
-  // Where the list starts (below the count line) and how tall a row really is.
+  // Where the list starts (below the count line, which can wrap) and how tall a row
+  // really is; measured again when the line or the width changes.
   useLayoutEffect(() => {
-    setListTop(list.current?.offsetTop ?? 0);
-    const row = list.current?.querySelector("li");
-    if (row) {
-      setRowHeight(row.getBoundingClientRect().height || ROW_GUESS);
+    const measure = () => {
+      setListTop(list.current?.offsetTop ?? 0);
+      const row = list.current?.querySelector("li");
+      if (row) {
+        setRowHeight(row.getBoundingClientRect().height || ROW_GUESS);
+      }
+    };
+    measure();
+    const el = scroller.current;
+    if (!el) {
+      return;
     }
-  }, [meta === null, hits.length > 0]);
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [meta, hits.length > 0]);
 
   // The selected row stays in view as the keyboard moves it or results refresh.
   useLayoutEffect(() => {
@@ -86,7 +100,7 @@ export function ResultList({
       el.scrollTop = next;
       setView({ scrollTop: el.scrollTop, height: el.clientHeight });
     }
-  }, [selected, hits, rowHeight, listTop]);
+  }, [selected, hits, rowHeight, listTop, reveal]);
 
   const range = visibleRange(view.scrollTop, view.height, rowHeight, listTop, hits.length);
   const wanted = detailsWindow(range.first, range.last, hits.length);
