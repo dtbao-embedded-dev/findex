@@ -282,6 +282,22 @@ button:focus-visible {
   height: 1.0625rem;
 }
 
+/* A re-scan in progress: the arrow turns, slowly, and the button waits. */
+.titlebar-tool.is-busy {
+  opacity: 1;
+}
+
+.titlebar-tool.is-busy svg {
+  color: var(--accent);
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .titlebar-buttons button {
   width: 2.875rem;
   height: 100%;
@@ -1756,7 +1772,8 @@ kbd {
     animation: fade 200ms ease both;
   }
 
-  .status-dot.is-busy {
+  .status-dot.is-busy,
+  .titlebar-tool.is-busy svg {
     animation: none;
   }
 

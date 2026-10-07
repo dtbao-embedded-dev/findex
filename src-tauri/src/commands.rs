@@ -108,6 +108,19 @@ pub async fn save_index(index: State<'_, Arc<IndexService>>) -> AppResult<()> {
         .map_err(|err| AppError::Invalid(format!("saving the index stopped: {err}")))
 }
 
+/// Reads the active drive again from scratch; progress arrives as `index-status`
+/// events. Off the main thread: starting waits for the index lock.
+#[tauri::command]
+pub async fn rescan_drive(app: AppHandle) -> AppResult<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<Db>();
+        let index = app.state::<Arc<IndexService>>();
+        index.rescan(&db, status_emitter(&app))
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("the re-scan could not start: {err}")))?
+}
+
 #[tauri::command]
 pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
     Ok(index.status())

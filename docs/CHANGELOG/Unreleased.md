@@ -130,6 +130,11 @@
 - The result list renders only the rows in view and reads type, size and date only
   for them, so 10,000 results scroll as smoothly as 200. ↑ from the first result
   still jumps to the last, and the menu key opens its actions there.
+- A re-scan button (the circular arrow in the title bar) reads the active drive again
+  from scratch, for when its index looks out of date. An NTFS drive is read from its
+  file table again instead of being caught up from its journal. The previous results
+  stay searchable until the new index replaces them; the button turns and waits
+  while any indexing runs, and the status bar shows the progress.
 - Findex updates itself. It checks for a newer signed release 10 seconds after it
   opens and every six hours, downloads it in the background, then offers "Restart
   now" or "Later" in a card above the status bar. "Later" keeps the download and

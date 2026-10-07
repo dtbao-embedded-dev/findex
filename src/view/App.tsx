@@ -6,7 +6,7 @@ import type { TagInfo } from "../model/tags";
 import { loadLimit, RESULTS_DEFAULT } from "../presenter/settingsPresenter";
 import { revealMain } from "../presenter/splashPresenter";
 import { loadTags } from "../presenter/tagPresenter";
-import { summarize, watchStatus } from "../presenter/statusPresenter";
+import { rescan, rescanLabel, summarize, watchStatus } from "../presenter/statusPresenter";
 import {
   createUpdater,
   listenForChecks,
@@ -18,6 +18,7 @@ import { SearchView } from "./SearchView";
 import { SettingsSheet } from "./SettingsSheet";
 import { TagSettings } from "./TagSettings";
 import { StatusBar } from "./StatusBar";
+import { Toast } from "./Toast";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
 
@@ -32,6 +33,8 @@ export function App() {
   const [active, setActive] = useState<string | null>(null);
   const [limit, setLimit] = useState(RESULTS_DEFAULT);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Why a re-scan could not start; it fades like any other note.
+  const [rescanError, setRescanError] = useState<string | null>(null);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   // The tag catalog, shared by the sidebar, the filters, the tag editor and the settings.
   const [tags, setTags] = useState<TagInfo[]>([]);
@@ -52,6 +55,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (rescanError === null) {
+      return;
+    }
+    const timer = setTimeout(() => setRescanError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [rescanError]);
+
+  useEffect(() => {
     const stopChecks = scheduleChecks(() => void updater.check(false));
     const stopTray = listenForChecks(() => void updater.check(true));
     return () => {
@@ -68,6 +79,9 @@ export function App() {
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
         onSettings={() => setSettingsOpen(true)}
+        onRescan={() => void rescan().then(setRescanError)}
+        rescanLabel={rescanLabel(active, status.busy)}
+        busy={status.busy}
       />
       <SearchView
         total={status.total}
@@ -83,6 +97,7 @@ export function App() {
         onLater={updater.later}
       />
       <StatusBar line={status} />
+      {rescanError !== null && <Toast text={rescanError} tone="error" />}
       {settingsOpen && (
         <SettingsSheet limit={limit} onLimitChange={setLimit} onClose={closeSettings}>
           <TagSettings catalog={tags} onCatalog={setTags} />
