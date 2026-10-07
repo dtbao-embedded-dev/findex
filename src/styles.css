@@ -1623,6 +1623,43 @@ button.tag-color:active {
 }
 
 /* A short confirmation over the status bar; errors stay a little longer. */
+/* Back to the top: a round, translucent button floating over the lower right of the
+   results once they are scrolled down; it rises into place rather than popping. */
+.back-to-top {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 1.25rem;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  color: var(--fg);
+  background: var(--material);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  animation: rise-in 220ms var(--ease) both;
+}
+
+.back-to-top:hover {
+  color: var(--accent);
+}
+
+.back-to-top svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.96);
+  }
+}
+
 .toast {
   position: absolute;
   bottom: 0.875rem;
@@ -1834,6 +1871,7 @@ button.tag-color:active {
 
   .drive-menu,
   .history-menu,
+  .back-to-top,
   .filter-panel,
   .sheet,
   .context-menu,

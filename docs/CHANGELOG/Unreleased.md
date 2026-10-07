@@ -218,6 +218,9 @@
   once it has stayed on screen with results for 1.5 s, or when a result's menu was
   used; typing on from the newest entry ("rea", then "readme") replaces it rather
   than adding both. The last 20 are kept across restarts.
+- A round **back to the top** button floats over the lower right of the results once
+  they are scrolled past one screen; it scrolls smoothly back up (instantly with
+  reduced motion) and then hides.
 
 ### Changed
 

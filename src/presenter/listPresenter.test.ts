@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { detailsWindow, needsMore, scrollToShow, visibleRange } from "./listPresenter";
+import {
+  detailsWindow,
+  needsMore,
+  scrollToShow,
+  showsBackToTop,
+  visibleRange,
+} from "./listPresenter";
 
 describe("visibleRange", () => {
   it("renders the rows in view plus a margin on each side", () => {
@@ -53,5 +59,15 @@ describe("needsMore", () => {
   it("never asks when no page follows or nothing is loaded", () => {
     expect(needsMore(500, 500, false)).toBe(false);
     expect(needsMore(0, 0, true)).toBe(false);
+  });
+});
+
+describe("showsBackToTop", () => {
+  it("offers the way back once the list is scrolled past one screen", () => {
+    expect(showsBackToTop(0, 500)).toBe(false);
+    expect(showsBackToTop(500, 500)).toBe(false);
+    expect(showsBackToTop(501, 500)).toBe(true);
+    // Not measured yet: nothing to go back to.
+    expect(showsBackToTop(100, 0)).toBe(false);
   });
 });
