@@ -4,6 +4,7 @@
 mod commands;
 mod error;
 mod model;
+mod splash;
 mod tray;
 
 use tauri::Manager;
@@ -20,11 +21,15 @@ pub fn run() -> tauri::Result<()> {
             tray::init(app)?;
             let path = app.path().app_data_dir()?.join("findex.sqlite3");
             app.manage(model::db::open(&path)?);
+            splash::arm_fallback(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing hides to the tray; the tray menu's Quit ends the app.
+            // Closing main hides to the tray; the tray menu's Quit ends the app.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" {
+                    return;
+                }
                 api.prevent_close();
                 if let Err(err) = window.hide() {
                     eprintln!("could not hide the window: {err}");
@@ -34,7 +39,9 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::get_setting,
-            commands::set_setting
+            commands::set_setting,
+            commands::app_about,
+            commands::splash_ready
         ])
         .run(tauri::generate_context!())
 }

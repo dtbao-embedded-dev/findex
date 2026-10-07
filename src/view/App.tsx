@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { initialGreeting, submitName } from "../presenter/greetingPresenter";
+import { revealMain } from "../presenter/splashPresenter";
 import { GreetingView } from "./GreetingView";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
 import { TitleBar } from "./TitleBar";
@@ -11,6 +12,10 @@ import { TitleBar } from "./TitleBar";
  */
 export function App() {
   const [greeting, setGreeting] = useState(initialGreeting);
+
+  useEffect(() => {
+    void revealMain(Promise.resolve());
+  }, []);
 
   return (
     <>

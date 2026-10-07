@@ -13,6 +13,10 @@
   in the name; `ext:pdf;docx` and `type:file` / `type:folder` narrow the results.
   Matches rank as exact name, then prefix, then word start, then anywhere. A million
   names answer in about 15 ms, so results can follow every keystroke.
+- A splash window shows the icon, version and copyright while the main window loads.
+  It stays up for at least 0.9 s so it never just flashes. If the main window fails to
+  report ready, it is shown anyway after 10 s. The copyright is read from
+  `bundle.copyright` in `tauri.conf.json`, the same value the installer uses.
 
 ### Changed
 
