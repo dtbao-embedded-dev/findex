@@ -1055,6 +1055,7 @@ version = "0.1.0"
 dependencies = [
  "memchr",
  "rayon",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

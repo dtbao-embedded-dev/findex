@@ -79,6 +79,20 @@ impl Query {
         &self.tags
     }
 
+    /// The words every result must hold, lowercased.
+    pub fn terms(&self) -> &[String] {
+        &self.terms
+    }
+
+    /// The file types kept, without the dot; empty keeps every type.
+    pub fn exts(&self) -> &[String] {
+        &self.exts
+    }
+
+    pub fn kind(&self) -> Kind {
+        self.kind
+    }
+
     /// Adds the filter bar's choices: its kind replaces a typed `type:`, its tags join
     /// the typed `tag:` ones, and its file types join the typed `ext:` ones.
     pub fn narrow(&mut self, filters: &Filters) {

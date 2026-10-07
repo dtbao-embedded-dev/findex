@@ -41,18 +41,45 @@ pub fn search(
     offset: usize,
     count: usize,
 ) -> AppResult<Option<Answer>> {
+    let cancelled = index.begin_search();
+    answer(
+        db,
+        index,
+        &query_for(text, filters),
+        filters,
+        offset,
+        count,
+        &cancelled,
+    )
+}
+
+/// The typed query with the filter bar's choices added.
+pub fn query_for(text: &str, filters: &Filters) -> Query {
     let mut query = search::parse(text);
     query.narrow(filters);
-    let cancelled = index.begin_search();
+    query
+}
+
+/// [`search`] for a query already parsed, under a search already begun: `None` once
+/// `cancelled` reports that a newer search replaced it.
+pub fn answer(
+    db: &Db,
+    index: &IndexService,
+    query: &Query,
+    filters: &Filters,
+    offset: usize,
+    count: usize,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> AppResult<Option<Answer>> {
     let index_bytes = index.memory_bytes();
     let Some(range) = filters.modified() else {
         let (hits, total) = if query.tags().is_empty() {
-            match index.search(&query, offset, count, &cancelled) {
+            match index.search(query, offset, count, cancelled) {
                 Some(page) => (page.hits, page.total),
                 None => return Ok(None),
             }
         } else {
-            let all = tagged(db, &query)?;
+            let all = tagged(db, query)?;
             let total = all.len();
             (all.into_iter().skip(offset).take(count).collect(), total)
         };
@@ -68,18 +95,18 @@ pub fn search(
     let wanted = offset.saturating_add(count);
     let pool = dated::pool_for(wanted).max(wanted);
     let named = if query.tags().is_empty() {
-        match index.search(&query, 0, pool, &cancelled) {
+        match index.search(query, 0, pool, cancelled) {
             Some(page) => page.hits,
             None => return Ok(None),
         }
     } else {
-        let mut all = tagged(db, &query)?;
+        let mut all = tagged(db, query)?;
         all.truncate(pool);
         all
     };
     let pool_full = named.len() >= pool;
     // One more than the page asks for tells whether another page follows.
-    let Some(kept) = dated::keep(named, &range, wanted.saturating_add(1), &cancelled) else {
+    let Some(kept) = dated::keep(named, &range, wanted.saturating_add(1), cancelled) else {
         return Ok(None);
     };
     let more = kept.len() > wanted;

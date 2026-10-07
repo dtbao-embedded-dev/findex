@@ -164,6 +164,21 @@
     server (offline, or no release published yet), shows nothing.
   - **Before installing:** the drive index changed by live updates is saved first,
     since the installer closes the app without the usual quit.
+- Search inside files. A content search lists the files whose name matches first,
+  ranked, then every file holding all the typed words, each with the line number and
+  the text of the first matching line. Results arrive while the drive is still being
+  read, with a count of the files read so far; a new search stops the old one.
+  - **What is read:** files of a text type (code, text, markup, configuration, logs,
+    CSV, KiCad design files and the like), or only the types picked in the Type
+    filter. Files over 8 MB and files that look binary are skipped. Matching ignores
+    case in any script ("ảnh" finds "Ảnh").
+  - **Filters:** a tag keeps the files inside the folders carrying it; a date keeps
+    the files changed in that range.
+  - **No index:** nothing is stored, so a search always reads the files as they are
+    now. Reading a whole drive takes as long as the disk needs; PDF and Word files are
+    not text, so their contents are not found.
+  - **Rights:** a release build runs as administrator, so it can read, and list
+    lines from, files your own account cannot open.
 
 ### Changed
 

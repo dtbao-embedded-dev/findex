@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
+use crate::model::contents::{self, Batch};
 use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
@@ -16,6 +17,7 @@ use crate::model::reveal;
 use crate::model::search::Filters;
 use crate::model::tags::{self, TagInfo};
 use crate::splash;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Forwards index progress to the frontend as the `index-status` event.
@@ -138,6 +140,35 @@ pub async fn search_names(
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))?
+}
+
+/// Searches names and then file contents, sending each batch of results through
+/// `on_batch` as it is found; resolves once the scan ends or a newer search stopped
+/// it. Off the async runtime: it reads files for as long as the drive takes.
+#[tauri::command]
+pub async fn search_contents(
+    app: AppHandle,
+    query: String,
+    filters: Option<Filters>,
+    on_batch: Channel<Batch>,
+) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<Db>();
+        let index = app.state::<Arc<IndexService>>();
+        contents::scan(
+            &db,
+            &index,
+            &query,
+            &filters.unwrap_or_default(),
+            &|batch| {
+                if let Err(err) = on_batch.send(batch) {
+                    eprintln!("could not send content results: {err}");
+                }
+            },
+        )
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("the content search stopped: {err}")))?
 }
 
 /// Type, size, date and tags for the results on screen. Off the async runtime: it

@@ -203,6 +203,29 @@ impl IndexService {
         search::run(&volumes, query, offset, count, cancelled)
     }
 
+    /// The paths of the files on every ready drive whose lowercase name `keep`
+    /// accepts. They are read under the index lock and handed back, so a long job on
+    /// them never holds it. `None` once `cancelled` reports.
+    pub fn files_where(
+        &self,
+        keep: impl Fn(&str) -> bool,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<Vec<String>> {
+        let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
+        let mut paths = Vec::new();
+        for index in volumes.iter() {
+            for id in 0..index.node_count() {
+                if id % 65_536 == 0 && cancelled() {
+                    return None;
+                }
+                if index.is_live(id) && !index.is_dir(id) && keep(index.lower_name(id)) {
+                    paths.push(index.path(id));
+                }
+            }
+        }
+        Some(paths)
+    }
+
     /// Bytes of memory the indexes of the chosen drives hold.
     pub fn memory_bytes(&self) -> usize {
         self.volumes
