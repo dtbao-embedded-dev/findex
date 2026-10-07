@@ -18,9 +18,9 @@ keywords: findex, file search, content search, folder tags, quick open, launcher
 
 ## Responsibility
 
-Stated by the user on 2026-10-07 when the repository was scaffolded. None of these
-capabilities exists in code yet; the scaffold only carries a greeting example and a
-settings table.
+Stated by the user on 2026-10-07 when the repository was scaffolded. Name search is
+built (see [ADR-0002](../adr/adr-0002-name-index.md)); content search, folder tags and
+quick open are not yet.
 
 | Capability | What the user asked for |
 |------------|-------------------------|
