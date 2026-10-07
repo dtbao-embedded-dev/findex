@@ -69,7 +69,9 @@ pub fn run() -> tauri::Result<()> {
             commands::open_claude,
             commands::add_tag,
             commands::remove_tag,
-            commands::list_tags
+            commands::tag_catalog,
+            commands::create_tag,
+            commands::delete_tag
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

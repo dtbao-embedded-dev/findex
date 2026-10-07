@@ -15,7 +15,7 @@ use crate::model::launch;
 use crate::model::reveal;
 use crate::model::search::Filters;
 use crate::model::settings;
-use crate::model::tags::{self, TagCount};
+use crate::model::tags::{self, TagInfo};
 use crate::splash;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -152,9 +152,21 @@ pub fn remove_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<Str
     tags::remove(&db, path, tag)
 }
 
+/// Every tag that can be picked: the colour presets, then custom tags.
 #[tauri::command]
-pub fn list_tags(db: State<'_, Db>) -> AppResult<Vec<TagCount>> {
-    tags::all(&db)
+pub fn tag_catalog(db: State<'_, Db>) -> AppResult<Vec<TagInfo>> {
+    tags::catalog(&db)
+}
+
+#[tauri::command]
+pub fn create_tag(db: State<'_, Db>, tag: &str) -> AppResult<Vec<TagInfo>> {
+    tags::create(&db, tag)
+}
+
+/// Deletes a custom tag and takes it off every folder.
+#[tauri::command]
+pub fn delete_tag(db: State<'_, Db>, tag: &str) -> AppResult<Vec<TagInfo>> {
+    tags::delete(&db, tag)
 }
 
 #[tauri::command]

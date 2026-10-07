@@ -4,6 +4,7 @@ import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
 import { detailsWindow, scrollToShow, visibleRange, type Rows } from "../presenter/listPresenter";
 import { describeHit, folderOf, highlight } from "../presenter/searchPresenter";
+import { tagLabel } from "../presenter/tagPresenter";
 
 type Props = {
   hits: Hit[];
@@ -18,6 +19,8 @@ type Props = {
   onReveal: (index: number) => void;
   onMenu: (at: { x: number; y: number }, index: number) => void;
   onTag: (tag: string) => void;
+  /** The colour of each colour tag, by name. */
+  tagColors: Record<string, string>;
   /** The rows whose details are worth reading, reported as the view scrolls. */
   onDetailsWindow: (rows: Rows) => void;
 };
@@ -41,6 +44,7 @@ export function ResultList({
   onReveal,
   onMenu,
   onTag,
+  tagColors,
   onDetailsWindow,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -143,10 +147,13 @@ export function ResultList({
                       type="button"
                       className="tag-chip is-small"
                       tabIndex={-1}
-                      title={`Filter by the tag ${tag}`}
+                      title={`Filter by the tag ${tagLabel(tag, tagColors)}`}
                       onClick={() => onTag(tag)}
                     >
-                      #{tag}
+                      {tag in tagColors && (
+                        <span className="tag-dot" data-color={tagColors[tag]} aria-hidden="true" />
+                      )}
+                      {tagLabel(tag, tagColors)}
                     </button>
                   ))}
                 </span>

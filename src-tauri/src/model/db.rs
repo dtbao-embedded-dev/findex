@@ -18,6 +18,20 @@ const MIGRATIONS: &[&str] = &[
          tag TEXT NOT NULL, \
          PRIMARY KEY (path, tag)); \
      CREATE INDEX folder_tag_by_tag ON folder_tag (tag);",
+    // The tag catalog: every tag that can be picked, carried by a folder or not. The
+    // colour tags ship with the app, cannot be deleted and sort first; `color` names
+    // the colour, which the frontend draws for light or dark. Tags already on folders
+    // become custom tags.
+    "CREATE TABLE tag (\
+         name TEXT PRIMARY KEY, \
+         color TEXT, \
+         preset INTEGER NOT NULL DEFAULT 0, \
+         ord INTEGER NOT NULL DEFAULT 1000); \
+     INSERT INTO tag (name, color, preset, ord) VALUES \
+         ('red', 'red', 1, 1), ('orange', 'orange', 1, 2), ('yellow', 'yellow', 1, 3), \
+         ('green', 'green', 1, 4), ('blue', 'blue', 1, 5), ('purple', 'purple', 1, 6), \
+         ('gray', 'gray', 1, 7); \
+     INSERT OR IGNORE INTO tag (name) SELECT DISTINCT tag FROM folder_tag;",
 ];
 
 /// The connection every command shares through `tauri::State`.
@@ -132,6 +146,34 @@ mod tests {
                 [],
             )
             .unwrap();
+    }
+
+    #[test]
+    fn a_version_two_database_keeps_its_tags_as_custom_ones() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(MIGRATIONS[0]).unwrap();
+        conn.execute_batch(MIGRATIONS[1]).unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folder_tag VALUES ('C:\\a', 'work'), ('C:\\b', 'work'), ('C:\\a', 'red');",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let rows: Vec<(String, Option<String>, bool)> = conn
+            .prepare("SELECT name, color, preset FROM tag ORDER BY ord, name")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        let names: Vec<&str> = rows.iter().map(|(name, _, _)| name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["red", "orange", "yellow", "green", "blue", "purple", "gray", "work"]
+        );
+        // A tag that was already a colour name stays the preset; the others are custom.
+        assert_eq!(rows[0], ("red".into(), Some("red".into()), true));
+        assert_eq!(rows[7], ("work".into(), None, false));
     }
 
     #[test]

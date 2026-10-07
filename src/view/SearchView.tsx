@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 
 import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
-import type { TagCount } from "../model/tags";
+import type { TagInfo } from "../model/tags";
 import type { Rows } from "../presenter/listPresenter";
 import {
   canSearch,
@@ -24,7 +24,7 @@ import {
   toggleTag,
   type FilterState,
 } from "../presenter/filterPresenter";
-import { loadTags } from "../presenter/tagPresenter";
+import { keepKnown, tagColors } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
 import { FilterBar } from "./FilterBar";
 import { ResultList } from "./ResultList";
@@ -52,6 +52,10 @@ type Props = {
   onActiveChange: (active: string | null) => void;
   /** How many results a search shows, from the settings. */
   limit: number;
+  /** Every tag that can be picked. */
+  tags: TagInfo[];
+  /** Asks for the tags again after a folder's tags changed. */
+  onTagsChanged: () => void;
 };
 
 /**
@@ -59,7 +63,7 @@ type Props = {
  * selection, Enter (or a double click) shows the result in Explorer, Esc clears.
  * Right-click, the menu key or Shift+F10 opens the actions for a result.
  */
-export function SearchView({ total, active, onActiveChange, limit }: Props) {
+export function SearchView({ total, active, onActiveChange, limit, tags, onTagsChanged }: Props) {
   const [state, setState] = useState(initialSearch);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
@@ -73,7 +77,6 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
-  const [tagsInUse, setTagsInUse] = useState<TagCount[]>([]);
   // Set when the keyboard opened the menu, so the field's own menu stays shut.
   const menuByKey = useRef(false);
 
@@ -98,18 +101,21 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
     field.current?.focus();
   }, []);
 
-  // The tags in use, listed in the sidebar; read again after every edit.
-  useEffect(() => {
-    void loadTags().then(setTagsInUse);
-  }, []);
-
-  const tagsChanged = (path: string, tags: string[]) => {
+  const tagsChanged = (path: string, folderTags: string[]) => {
     setDetails((d) => {
       const known = d[path];
-      return known ? { ...d, [path]: { ...known, tags } } : d;
+      return known ? { ...d, [path]: { ...known, tags: folderTags } } : d;
     });
-    void loadTags().then(setTagsInUse);
+    onTagsChanged();
   };
+
+  // A tag deleted in the settings stops narrowing the search.
+  useEffect(() => {
+    const kept = keepKnown(filters.tags, tags);
+    if (kept.length !== filters.tags.length) {
+      changeFilters({ ...filters, tags: kept });
+    }
+  }, [tags]);
 
   // Coming back from the tray or another window, typing goes straight to the field.
   useEffect(() => {
@@ -128,7 +134,8 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
         setDetails((d) => (fresh ? found : { ...d, ...found }));
       }
     });
-  }, [state.hits, shown, loadDetails]);
+    // The tags change too: a deleted tag must leave the rows that showed it.
+  }, [state.hits, shown, loadDetails, tags]);
 
   // Dates such as "Today" are measured when each search is asked, not when picked.
   const run = (query: string, by: FilterState = filters) => {
@@ -219,6 +226,7 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
   };
 
   const view = resultsView(state, filters);
+  const colors = useMemo(() => tagColors(tags), [tags]);
 
   const searchTag = (tag: string) => {
     changeFilters({ ...filters, tags: toggleTag(filters.tags, tag) });
@@ -236,7 +244,7 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
           }
           field.current?.focus();
         }}
-        tags={tagsInUse}
+        tags={tags}
         selectedTags={filters.tags}
         onTag={searchTag}
       />
@@ -264,7 +272,7 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
               }}
             />
           </label>
-          <FilterBar filters={filters} tags={tagsInUse} onChange={changeFilters} />
+          <FilterBar filters={filters} tags={tags} onChange={changeFilters} />
         </div>
 
         {view === "list" ? (
@@ -292,6 +300,7 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
               }
             }}
             onTag={searchTag}
+            tagColors={colors}
             onDetailsWindow={setShown}
           />
         ) : (
@@ -340,6 +349,7 @@ export function SearchView({ total, active, onActiveChange, limit }: Props) {
             at={editing.at}
             folder={editing.folder}
             tags={editing.tags}
+            catalog={tags}
             onChange={(tags) => {
               setEditing((e) => e && { ...e, tags });
               tagsChanged(editing.folder.path, tags);

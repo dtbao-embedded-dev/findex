@@ -87,11 +87,22 @@
   remove one; tags already in use are offered with one press.
   - **Finding them:** `tag:work` lists the folders tagged `work`, on any drive, and
     combines with name words (`proj tag:work`) and several tags (`tag:work;fw`).
-  - **Where they show:** as chips beside a folder's name in the results, and on the
-    empty search screen with how many folders carry each; pressing one searches it.
+  - **Where they show:** as chips beside a folder's name in the results, and in the
+    sidebar with how many folders carry each; pressing one filters by it.
   - **What a tag is:** one word of up to 32 letters, digits, `-` or `_`, stored in
     lower case. Tags are saved in the app's database, keyed by the folder's path, so a
     folder that is renamed or moved loses its tags.
+- Tags come in two kinds, as in Finder:
+  - **Colour tags:** Red, Orange, Yellow, Green, Blue, Purple and Gray are always
+    there, drawn as coloured dots in the sidebar, the filters, the tag editor and on
+    results, and cannot be deleted. The tag editor offers them as a row of dots to
+    toggle.
+  - **Your own tags:** made in Settings → Tags, or by typing a new name in the tag
+    editor. Settings lists them with their folder counts; deleting one asks first and
+    takes it off every folder. A tag that already exists is refused rather than
+    merged.
+  - **Upgrading:** tags already on folders become your own tags; a folder tagged
+    `red` before keeps it, now as the Red colour tag.
 - A filter bar under the search field narrows the results. Every change searches
   again at once.
   - **Date:** when a result last changed: Today, Yesterday, Last 7 days, Last 30

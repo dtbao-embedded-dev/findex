@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import type { Kind } from "../model/search";
-import type { TagCount } from "../model/tags";
+import type { TagInfo } from "../model/tags";
 import {
   CUSTOM_DATES,
   DATE_PRESETS,
@@ -14,12 +14,14 @@ import {
   type DateChoice,
   type FilterState,
 } from "../presenter/filterPresenter";
+import { tagColors, tagLabel, tagName } from "../presenter/tagPresenter";
+import { TagMark } from "./TagMark";
 import { useDismiss } from "./useDismiss";
 
 type Props = {
   filters: FilterState;
-  /** The tags in use, offered by the tag menu. */
-  tags: TagCount[];
+  /** Every tag that can be picked, offered by the tag menu. */
+  tags: TagInfo[];
   onChange: (filters: FilterState) => void;
 };
 
@@ -36,6 +38,7 @@ const KINDS: { kind: Kind; label: string }[] = [
  */
 export function FilterBar({ filters, tags, onChange }: Props) {
   const set = (change: Partial<FilterState>) => onChange({ ...filters, ...change });
+  const colors = tagColors(tags);
 
   return (
     <div className="filter-bar" role="toolbar" aria-label="Filters">
@@ -63,13 +66,15 @@ export function FilterBar({ filters, tags, onChange }: Props) {
       </div>
 
       <Popover
-        label={filters.tags.length === 0 ? "Tags" : filters.tags.map((t) => `#${t}`).join(" ")}
+        label={
+          filters.tags.length === 0 ? "Tags" : filters.tags.map((t) => tagLabel(t, colors)).join(", ")
+        }
         active={filters.tags.length > 0}
         icon={<TagGlyph />}
         title="Folders carrying every tag picked"
       >
         {tags.length === 0 ? (
-          <p className="filter-note">No tags yet. Right-click a folder and choose Tags… to add one.</p>
+          <p className="filter-note">The tags could not be read.</p>
         ) : (
           <div className="filter-options" role="group" aria-label="Tags">
             {tags.map((t) => (
@@ -82,8 +87,9 @@ export function FilterBar({ filters, tags, onChange }: Props) {
                 onClick={() => set({ tags: toggleTag(filters.tags, t.tag) })}
               >
                 <span className="filter-check" aria-hidden="true" />
-                <span className="filter-option-label">#{t.tag}</span>
-                <span className="sidebar-count">{t.folders}</span>
+                <TagMark tag={t.tag} colors={colors} />
+                <span className="filter-option-label">{tagName(t.tag, colors)}</span>
+                {t.folders > 0 && <span className="sidebar-count">{t.folders}</span>}
               </button>
             ))}
           </div>
