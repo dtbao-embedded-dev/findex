@@ -5,6 +5,7 @@ import {
   activeTitle,
   chooseDrive,
   describeDrive,
+  driveLetterLabel,
   formatBytes,
   loadActive,
   loadDrives,
@@ -80,6 +81,11 @@ describe("wording", () => {
     expect(activeTitle(drives, "C")).toBe("Windows (C:)");
     expect(activeTitle(drives, "F")).toBe("F:");
     expect(activeTitle(drives, null)).toBe("Choose a drive");
+  });
+
+  it("labels the compact picker by drive letter alone", () => {
+    expect(driveLetterLabel("E")).toBe("E:");
+    expect(driveLetterLabel(null)).toBe("Drive");
   });
 
   it("says which drive the search covers", () => {

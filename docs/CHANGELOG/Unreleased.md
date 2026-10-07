@@ -226,6 +226,11 @@
 - The status bar explains a folder scan in plain words. When rights are missing it
   says "open Findex as administrator for instant search and live updates" instead of
   "Access is denied (os error 5)".
+- The sidebar is gone; the search now fills the window. The drive picker is a
+  compact button (drive glyph and letter, e.g. `E:`) at the left of the search field,
+  with the drive's name and free space on hover, and the re-scan button moved from the
+  title bar to the right of the field. Tags are still filtered from the **Tags** menu
+  in the filter bar and from the tag chips on results.
 
 ### Fixed
 

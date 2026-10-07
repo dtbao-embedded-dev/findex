@@ -29,9 +29,9 @@ import {
 } from "../presenter/filterPresenter";
 import { keepKnown, tagColors } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
+import { DrivePicker } from "./DrivePicker";
 import { FilterBar } from "./FilterBar";
 import { ResultList } from "./ResultList";
-import { Sidebar } from "./Sidebar";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
 
@@ -57,6 +57,12 @@ type Props = {
   tags: TagInfo[];
   /** Asks for the tags again after a folder's tags changed. */
   onTagsChanged: () => void;
+  /** Indexes the active drive again. */
+  onRescan: () => void;
+  /** What the re-scan button says on hover. */
+  rescanLabel: string;
+  /** True while a drive is being indexed: the re-scan button waits and turns. */
+  busy: boolean;
 };
 
 /**
@@ -64,7 +70,16 @@ type Props = {
  * selection and Esc clears. Enter and a double click open nothing: every action on a
  * result goes through its menu (right-click, the menu key or Shift+F10).
  */
-export function SearchView({ total, active, onActiveChange, tags, onTagsChanged }: Props) {
+export function SearchView({
+  total,
+  active,
+  onActiveChange,
+  tags,
+  onTagsChanged,
+  onRescan,
+  rescanLabel,
+  busy,
+}: Props) {
   const [state, setState] = useState(initialSearch);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
@@ -284,43 +299,61 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
 
   return (
     <div className="workspace">
-      <Sidebar
-        active={active}
-        onActiveChange={(letter, error) => {
-          onActiveChange(letter);
-          if (error !== null) {
-            show(error, "error");
-          }
-          field.current?.focus();
-        }}
-        tags={tags}
-        selectedTags={filters.tags}
-        onTag={searchTag}
-      />
       <main className="search">
         <div className="search-header">
-          <label className="search-field">
-            <SearchGlyph />
-            <input
-              ref={field}
-              autoFocus
-              type="text"
-              spellCheck={false}
-              autoComplete="off"
-              placeholder={searchPlaceholder(active, filters.mode)}
-              aria-label="Search files and folders"
-              aria-controls="results"
-              value={state.query}
-              onChange={(event) => run(event.target.value)}
-              onKeyDown={onKeyDown}
-              onContextMenu={(event) => {
-                if (menuByKey.current) {
-                  event.preventDefault();
-                  menuByKey.current = false;
+          <div className="search-row">
+            <DrivePicker
+              active={active}
+              onChange={(letter, error) => {
+                onActiveChange(letter);
+                if (error !== null) {
+                  show(error, "error");
                 }
+                field.current?.focus();
               }}
             />
-          </label>
+            <label className="search-field">
+              <SearchGlyph />
+              <input
+                ref={field}
+                autoFocus
+                type="text"
+                spellCheck={false}
+                autoComplete="off"
+                placeholder={searchPlaceholder(active, filters.mode)}
+                aria-label="Search files and folders"
+                aria-controls="results"
+                value={state.query}
+                onChange={(event) => run(event.target.value)}
+                onKeyDown={onKeyDown}
+                onContextMenu={(event) => {
+                  if (menuByKey.current) {
+                    event.preventDefault();
+                    menuByKey.current = false;
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={busy ? "search-tool is-busy" : "search-tool"}
+              aria-label={rescanLabel}
+              title={rescanLabel}
+              disabled={busy}
+              onClick={onRescan}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M16.25 10a6.25 6.25 0 1 1-1.83-4.42M16.25 3.75v3.5h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
           <FilterBar filters={filters} tags={tags} onChange={changeFilters} />
         </div>
 

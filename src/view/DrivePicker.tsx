@@ -4,6 +4,7 @@ import {
   activeTitle,
   chooseDrive,
   describeDrive,
+  driveLetterLabel,
   loadDrives,
   type DriveList,
 } from "../presenter/drivePresenter";
@@ -15,8 +16,10 @@ type Props = {
 };
 
 /**
- * The drive the search covers, as a row in the sidebar. It opens a menu of every
- * drive; picking one indexes that drive alone. Esc or a click outside closes it.
+ * The drive the search covers, as a compact button at the left of the search field:
+ * its glyph and letter, with the full name and free space on hover. It opens a menu
+ * of every drive; picking one indexes that drive alone. Esc or a click outside
+ * closes it.
  */
 export function DrivePicker({ active, onChange }: Props) {
   const [open, setOpen] = useState(false);
@@ -100,14 +103,16 @@ export function DrivePicker({ active, onChange }: Props) {
         className="drive-button"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="The drive Findex indexes and searches"
+        title={
+          current
+            ? `${activeTitle(list.drives, active)} · ${describeDrive(current).detail}`
+            : "The drive Findex indexes and searches"
+        }
+        aria-label={`Drive: ${activeTitle(list.drives, active)}`}
         onClick={toggle}
       >
         <DriveGlyph removable={current?.removable ?? false} />
-        <span className="drive-button-text">
-          <span className="drive-button-label">{activeTitle(list.drives, active)}</span>
-          {current && <span className="drive-button-detail">{describeDrive(current).detail}</span>}
-        </span>
+        <span className="drive-button-label">{driveLetterLabel(active)}</span>
         <svg className="chevron" viewBox="0 0 12 12" aria-hidden="true">
           <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" />
         </svg>

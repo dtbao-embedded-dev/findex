@@ -119,7 +119,7 @@ export function TagSettings({ catalog, onCatalog }: Props) {
                         #
                       </span>
                       <span className="setting-item-label">{t.tag}</span>
-                      <span className="sidebar-count">
+                      <span className="item-count">
                         {t.folders} folder{t.folders === 1 ? "" : "s"}
                       </span>
                       <button

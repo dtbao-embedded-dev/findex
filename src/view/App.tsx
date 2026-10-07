@@ -34,7 +34,7 @@ export function App() {
   // Why a re-scan could not start; it fades like any other note.
   const [rescanError, setRescanError] = useState<string | null>(null);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
-  // The tag catalog, shared by the sidebar, the filters, the tag editor and the settings.
+  // The tag catalog, shared by the filters, the tag editor and the settings.
   const [tags, setTags] = useState<TagInfo[]>([]);
   const refreshTags = useCallback(() => void loadTags().then(setTags), []);
   const [status, setStatus] = useState(() => summarize({ drives: [] }));
@@ -76,9 +76,6 @@ export function App() {
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
         onSettings={() => setSettingsOpen(true)}
-        onRescan={() => void rescan().then(setRescanError)}
-        rescanLabel={rescanLabel(active, status.busy)}
-        busy={status.busy}
       />
       <SearchView
         total={status.total}
@@ -86,6 +83,9 @@ export function App() {
         onActiveChange={setActive}
         tags={tags}
         onTagsChanged={refreshTags}
+        onRescan={() => void rescan().then(setRescanError)}
+        rescanLabel={rescanLabel(active, status.busy)}
+        busy={status.busy}
       />
       <UpdateBanner
         state={update}

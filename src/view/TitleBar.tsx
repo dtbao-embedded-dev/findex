@@ -7,11 +7,6 @@ type Props = {
   onToggleMaximize: () => Promise<void>;
   onClose: () => Promise<void>;
   onSettings: () => void;
-  onRescan: () => void;
-  /** What the re-scan button says on hover. */
-  rescanLabel: string;
-  /** True while a drive is being indexed: the re-scan button waits and turns. */
-  busy: boolean;
 };
 
 /**
@@ -25,9 +20,6 @@ export function TitleBar({
   onToggleMaximize,
   onClose,
   onSettings,
-  onRescan,
-  rescanLabel,
-  busy,
 }: Props) {
   return (
     <header className="titlebar" data-tauri-drag-region>
@@ -51,25 +43,6 @@ export function TitleBar({
         )}
       </span>
       <div className="titlebar-tools">
-        <button
-          type="button"
-          className={busy ? "titlebar-tool is-busy" : "titlebar-tool"}
-          aria-label={rescanLabel}
-          title={rescanLabel}
-          disabled={busy}
-          onClick={onRescan}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path
-              d="M16.25 10a6.25 6.25 0 1 1-1.83-4.42M16.25 3.75v3.5h-3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
         <button
           type="button"
           className="titlebar-tool"
