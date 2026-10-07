@@ -74,6 +74,7 @@ pub fn run() -> tauri::Result<()> {
             commands::open_folder,
             commands::open_terminal,
             commands::open_claude,
+            commands::open_vscode,
             commands::add_tag,
             commands::remove_tag,
             commands::tag_catalog,

@@ -21,6 +21,7 @@ function recorder(fail: Partial<Record<keyof ActionDeps, string>> = {}) {
     openClaude: fake("openClaude"),
     openFolder: fake("openFolder"),
     openTerminal: fake("openTerminal"),
+    openVsCode: fake("openVsCode"),
     reveal: fake("reveal"),
     copy: fake("copy"),
   };
@@ -28,9 +29,10 @@ function recorder(fail: Partial<Record<keyof ActionDeps, string>> = {}) {
 }
 
 describe("menuFor", () => {
-  it("offers Claude, Explorer, a terminal and copying for a folder", () => {
+  it("offers Claude, VS Code, Explorer, a terminal and copying for a folder", () => {
     expect(menuFor(folder).map((item) => item.label)).toEqual([
       "Open with Claude",
+      "Open with VS Code",
       "Open folder",
       "Open in Terminal",
       "Copy path",
@@ -39,8 +41,9 @@ describe("menuFor", () => {
     ]);
   });
 
-  it("offers showing and copying for a file", () => {
+  it("offers VS Code, showing and copying for a file", () => {
     expect(menuFor(file).map((item) => item.label)).toEqual([
+      "Open with VS Code",
       "Show in Explorer",
       "Copy path",
       "Copy name",
@@ -49,7 +52,7 @@ describe("menuFor", () => {
 
   it("separates the open actions from the copy actions", () => {
     const groups = menuFor(folder).map((item) => item.group);
-    expect(groups).toEqual([0, 0, 0, 1, 1, 2]);
+    expect(groups).toEqual([0, 0, 0, 0, 1, 1, 2]);
   });
 });
 
@@ -60,6 +63,8 @@ describe("runAction", () => {
       await runAction(action, folder, deps);
     }
     await runAction("reveal", file, deps);
+    await runAction("vscode", folder, deps);
+    await runAction("vscode", file, deps);
     expect(calls).toEqual([
       "openClaude E:\\Baotd\\findex",
       "openFolder E:\\Baotd\\findex",
@@ -67,6 +72,8 @@ describe("runAction", () => {
       "copy E:\\Baotd\\findex",
       "copy findex",
       "reveal E:\\Baotd\\notes.md",
+      "openVsCode E:\\Baotd\\findex",
+      "openVsCode E:\\Baotd\\notes.md",
     ]);
   });
 

@@ -14,3 +14,8 @@ export function openTerminal(path: string): Promise<void> {
 export function openClaude(path: string): Promise<void> {
   return invoke<void>("open_claude", { path });
 }
+
+/** Opens a folder or a file in Visual Studio Code, with the user's normal rights. */
+export function openVsCode(path: string): Promise<void> {
+  return invoke<void>("open_vscode", { path });
+}

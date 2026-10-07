@@ -1,6 +1,7 @@
-//! Opens a folder in Explorer, in a terminal, or in Claude Code. Findex runs as
-//! administrator, so a terminal it started would be too; terminals and Claude start
-//! as the signed-in user instead, through `win32::spawn_as_shell_user`.
+//! Opens a folder in Explorer, in a terminal, in Claude Code, or (folders and files)
+//! in VS Code. Findex runs as administrator, so a terminal it started would be too;
+//! terminals, Claude and VS Code start as the signed-in user instead, through
+//! `win32::spawn_as_shell_user`.
 //!
 //! The folder is never put on a command line: it becomes the new process's working
 //! directory, so a name holding spaces, quotes or `;` (which Windows Terminal treats
@@ -48,6 +49,68 @@ pub fn open_claude(path: &str) -> AppResult<()> {
         AppError::Invalid("Claude Code is not installed (claude not found on PATH)".into())
     })?;
     start(&terminal_command(&find_terminal(), Some(&claude)), &dir)
+}
+
+/// Opens a folder, or a file, in Visual Studio Code as the signed-in user. Like the
+/// terminal, the path never goes on the command line as typed: Code starts in the
+/// folder (a file's own folder) and is handed `.` or `.\<name>`, which cannot be
+/// read as an option.
+pub fn open_vscode(path: &str) -> AppResult<()> {
+    let code = find_vscode(
+        &env("PATH"),
+        &env("PATHEXT"),
+        &[env("LOCALAPPDATA"), env("ProgramFiles")],
+    )
+    .ok_or_else(|| {
+        AppError::Invalid("Visual Studio Code is not installed (Code.exe not found)".into())
+    })?;
+    let (dir, arg) = vscode_target(Path::new(path))?;
+    start(&vscode_command(&code, &arg), &dir)
+}
+
+/// Where Code starts and what it is told to open: a folder as `.` from inside it,
+/// a file as `.\<name>` from its own folder.
+fn vscode_target(path: &Path) -> AppResult<(PathBuf, String)> {
+    if path.is_dir() {
+        return Ok((path.to_path_buf(), ".".into()));
+    }
+    match (path.is_file(), path.parent(), path.file_name()) {
+        (true, Some(dir), Some(name)) => {
+            Ok((dir.to_path_buf(), format!(r".\{}", name.to_string_lossy())))
+        }
+        _ => Err(AppError::Invalid(format!(
+            "{} is not a file or folder that exists",
+            path.display()
+        ))),
+    }
+}
+
+/// `"<Code.exe>" "<arg>"`; a Windows name can hold no quote, so quoting is enough.
+pub fn vscode_command(code: &Path, arg: &str) -> String {
+    format!("\"{}\" \"{arg}\"", code.display())
+}
+
+/// `Code.exe`: beside the `code` command on PATH (`<install>\bin\code.cmd`), else in
+/// the default per-user or machine-wide install under one of `roots`
+/// (`%LOCALAPPDATA%\Programs`, `%ProgramFiles%`). The `.cmd` shim itself is not run:
+/// it would flash a console and runs through cmd.
+pub fn find_vscode(path: &str, pathext: &str, roots: &[String]) -> Option<PathBuf> {
+    let beside_cli = find_on_path("code", path, pathext)
+        .and_then(|cli| Some(cli.parent()?.parent()?.join("Code.exe")));
+    let installs = roots
+        .iter()
+        .filter(|root| !root.is_empty())
+        .flat_map(|root| {
+            [
+                Path::new(root).join("Programs").join("Microsoft VS Code"),
+                Path::new(root).join("Microsoft VS Code"),
+            ]
+        })
+        .map(|dir| dir.join("Code.exe"));
+    beside_cli
+        .into_iter()
+        .chain(installs)
+        .find(|exe| exe.is_file())
 }
 
 /// The command line that opens `terminal` in its working directory, running the
@@ -296,6 +359,53 @@ mod tests {
             let text = std::fs::read_to_string(&written).unwrap();
             assert_eq!(text.trim(), work.display().to_string(), "{terminal:?}");
         }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn finds_code_beside_its_cli_shim_or_in_a_default_install() {
+        let root = std::env::temp_dir().join(format!("findex-vscode-{}", std::process::id()));
+        let install = root.join("VS Code");
+        std::fs::create_dir_all(install.join("bin")).unwrap();
+        std::fs::write(install.join("bin").join("code.cmd"), "").unwrap();
+        std::fs::write(install.join("Code.exe"), "").unwrap();
+        let path = install.join("bin").display().to_string();
+        assert_eq!(
+            find_vscode(&path, ".EXE;.CMD", &[]),
+            Some(install.join("Code.exe"))
+        );
+
+        // Not on PATH: the per-user install under %LOCALAPPDATA%\Programs.
+        let local = root.join("local");
+        let user = local.join("Programs").join("Microsoft VS Code");
+        std::fs::create_dir_all(&user).unwrap();
+        std::fs::write(user.join("Code.exe"), "").unwrap();
+        let roots = [String::new(), local.display().to_string()];
+        assert_eq!(find_vscode("", ".EXE", &roots), Some(user.join("Code.exe")));
+        assert_eq!(find_vscode("", ".EXE", &[]), None);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn code_opens_a_folder_from_inside_and_a_file_from_its_folder() {
+        let root = std::env::temp_dir().join(format!("findex-vscode-t-{}", std::process::id()));
+        let file = root.join("a b.txt");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&file, "").unwrap();
+        assert_eq!(vscode_target(&root).unwrap(), (root.clone(), ".".into()));
+        assert_eq!(
+            vscode_target(&file).unwrap(),
+            (root.clone(), r".\a b.txt".into())
+        );
+        assert!(matches!(
+            vscode_target(&root.join("gone")),
+            Err(AppError::Invalid(_))
+        ));
+        let code = Path::new(r"C:\Users\a b\AppData\Local\Programs\Microsoft VS Code\Code.exe");
+        assert_eq!(
+            vscode_command(code, r".\a b.txt"),
+            r#""C:\Users\a b\AppData\Local\Programs\Microsoft VS Code\Code.exe" ".\a b.txt""#
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 

@@ -208,6 +208,10 @@
   unreadable subfolders count as empty; a folder that cannot be read shows no size.
   Measuring uses four threads of its own, so a large folder never slows the search,
   and scrolling past a folder stops measuring it.
+- **Open with VS Code** in the right-click menu of both folders and files. A folder
+  opens as its own VS Code window, a file in VS Code's current window. Code is found
+  beside the `code` command on PATH, else in the default per-user or machine-wide
+  install, and starts with your normal rights, like the terminal.
 
 ### Changed
 

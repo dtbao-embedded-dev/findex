@@ -315,3 +315,8 @@ pub fn open_terminal(path: &str) -> AppResult<()> {
 pub fn open_claude(path: &str) -> AppResult<()> {
     launch::open_claude(path)
 }
+
+#[tauri::command]
+pub fn open_vscode(path: &str) -> AppResult<()> {
+    launch::open_vscode(path)
+}
