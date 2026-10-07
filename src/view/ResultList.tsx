@@ -103,7 +103,14 @@ export function ResultList({
         setView({ scrollTop: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })
       }
     >
-      {meta !== null && <p className="results-meta">{meta}</p>}
+      {meta !== null && (
+        <p
+          className="results-meta"
+          title="Results found, the time the search took, and the memory the drive's name index holds"
+        >
+          {meta}
+        </p>
+      )}
       <ul
         ref={list}
         id="results"

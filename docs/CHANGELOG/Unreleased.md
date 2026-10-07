@@ -130,6 +130,11 @@
 - The result list renders only the rows in view and reads type, size and date only
   for them, so 10,000 results scroll as smoothly as 200. ↑ from the first result
   still jumps to the last, and the menu key opens its actions there.
+- The line above the results shows how much memory the drive's name index holds,
+  beside the search time: "Top 200 results · 18 ms · 133 MB RAM". It counts what the
+  index's containers hold, so it is lower than the app's working set in Task Manager,
+  which also holds the window and the rest of the app (133 MB against 191 MB for
+  1.2 million names here).
 - A re-scan button (the circular arrow in the title bar) reads the active drive again
   from scratch, for when its index looks out of date. An NTFS drive is read from its
   file table again instead of being caught up from its journal. The previous results

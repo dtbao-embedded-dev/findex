@@ -201,6 +201,16 @@ impl IndexService {
         search::run(&volumes, query, limit, cancelled)
     }
 
+    /// Bytes of memory the indexes of the chosen drives hold.
+    pub fn memory_bytes(&self) -> usize {
+        self.volumes
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .map(VolumeIndex::heap_bytes)
+            .sum()
+    }
+
     /// Saves every drive changed by live updates since its last save; called on quit,
     /// so the next launch resumes from the journal instead of rebuilding.
     pub fn save_changed(&self) {

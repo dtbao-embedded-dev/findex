@@ -13,6 +13,8 @@ export type SearchState = {
   tookMs: number | null;
   /** A date filter was checked on only the best name matches: more may match. */
   partial: boolean;
+  /** Bytes of memory the search index held at the last answer. */
+  indexBytes: number | null;
 };
 
 export const initialSearch: SearchState = {
@@ -22,12 +24,23 @@ export const initialSearch: SearchState = {
   error: null,
   tookMs: null,
   partial: false,
+  indexBytes: null,
 };
 
 /** The part of the state one search answers; null when a later search superseded it. */
-export type SearchUpdate = Pick<SearchState, "hits" | "selected" | "error" | "tookMs" | "partial">;
+export type SearchUpdate = Pick<
+  SearchState,
+  "hits" | "selected" | "error" | "tookMs" | "partial" | "indexBytes"
+>;
 
-const CLEARED: SearchUpdate = { hits: [], selected: 0, error: null, tookMs: null, partial: false };
+const CLEARED: SearchUpdate = {
+  hits: [],
+  selected: 0,
+  error: null,
+  tookMs: null,
+  partial: false,
+  indexBytes: null,
+};
 
 /**
  * Whether there is anything to ask: the index holds names only, so a search needs a
@@ -87,6 +100,7 @@ export function latestOnly(
         error: null,
         tookMs: now() - start,
         partial: answer.partial,
+        indexBytes: answer.indexBytes,
       };
     } catch (err) {
       return mine === latest ? { ...CLEARED, error: String(err) } : null;
@@ -95,21 +109,26 @@ export function latestOnly(
 }
 
 /**
- * The line above the results: how many, and how fast. A full page (`limit` results)
- * means there are more matches. When a date was checked on only the best name
- * matches, it says how to see more.
+ * The line above the results: how many, how fast, and how much memory the index
+ * searched holds. A full page (`limit` results) means there are more matches. When
+ * a date was checked on only the best name matches, it says how to see more.
  */
 export function describeResults(
   count: number,
   tookMs: number,
-  { partial = false, limit = RESULTS_DEFAULT }: { partial?: boolean; limit?: number } = {},
+  {
+    partial = false,
+    limit = RESULTS_DEFAULT,
+    indexBytes = null,
+  }: { partial?: boolean; limit?: number; indexBytes?: number | null } = {},
 ): string {
   const amount =
     count >= limit
       ? `Top ${limit.toLocaleString("en-US")} results`
       : `${count.toLocaleString("en-US")} result${count === 1 ? "" : "s"}`;
+  const memory = indexBytes === null ? "" : ` · ${formatBytes(indexBytes)} RAM`;
   const more = partial ? " · type more of the name to find older matches" : "";
-  return `${amount} · ${Math.max(1, Math.round(tookMs))} ms${more}`;
+  return `${amount} · ${Math.max(1, Math.round(tookMs))} ms${memory}${more}`;
 }
 
 /**

@@ -22,7 +22,7 @@ function hit(path: string, isDir = false): Hit {
 
 const NO_FILTERS: Filters = { kind: "any", tags: [], modifiedFrom: null, modifiedTo: null };
 
-const found = (hits: Hit[], partial = false): Answer => ({ hits, partial });
+const found = (hits: Hit[], partial = false): Answer => ({ hits, partial, indexBytes: 4096 });
 
 /** A model search whose answers the test releases in any order, keyed by query and kind. */
 function deferredSearch() {
@@ -73,6 +73,7 @@ describe("latestOnly", () => {
     // A tag alone is enough to ask: it lists the folders carrying it.
     expect(await search("", tagged)).toMatchObject({
       partial: true,
+      indexBytes: 4096,
       hits: [hit("C:\\proj", true)],
     });
     expect(asked).toEqual(tagged);
@@ -97,7 +98,14 @@ describe("latestOnly", () => {
       asked = true;
       return found([]);
     });
-    const cleared = { hits: [], selected: 0, error: null, tookMs: null, partial: false };
+    const cleared = {
+      hits: [],
+      selected: 0,
+      error: null,
+      tookMs: null,
+      partial: false,
+      indexBytes: null,
+    };
     expect(await search("   ", NO_FILTERS)).toEqual(cleared);
     // A kind or a date alone has no name to look for.
     expect(await search("", { ...NO_FILTERS, kind: "file", modifiedFrom: 1 })).toEqual(cleared);
@@ -132,6 +140,15 @@ describe("describeResults", () => {
   it("counts against the limit the settings chose", () => {
     expect(describeResults(5000, 42, { limit: 5000 })).toBe("Top 5,000 results · 42 ms");
     expect(describeResults(4999, 42, { limit: 5000 })).toBe("4,999 results · 42 ms");
+  });
+
+  it("shows how much memory the index holds beside the time", () => {
+    expect(describeResults(200, 12, { indexBytes: 245 * 1024 * 1024 })).toBe(
+      "Top 200 results · 12 ms · 245 MB RAM",
+    );
+    expect(describeResults(3, 80, { partial: true, indexBytes: 1536 })).toBe(
+      "3 results · 80 ms · 1.5 KB RAM · type more of the name to find older matches",
+    );
   });
 
   it("says how to see more when a date was checked on the best matches only", () => {

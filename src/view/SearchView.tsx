@@ -287,6 +287,7 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
                 : describeResults(state.hits.length, state.tookMs, {
                     partial: state.partial,
                     limit,
+                    indexBytes: state.indexBytes,
                   })
             }
             rows={rows}

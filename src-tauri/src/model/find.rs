@@ -22,6 +22,8 @@ pub struct Answer {
     /// True when a date range was checked on only the best name matches, so more
     /// results may exist for a narrower name.
     pub partial: bool,
+    /// Bytes of memory the search index holds, shown beside the search time.
+    pub index_bytes: usize,
 }
 
 /// The best `limit` results for `text` narrowed by `filters`. `None` when a newer
@@ -51,10 +53,12 @@ pub fn search(
     } else {
         tagged(db, &query, pool)?
     };
+    let index_bytes = index.memory_bytes();
     let Some(range) = range else {
         return Ok(Some(Answer {
             hits,
             partial: false,
+            index_bytes,
         }));
     };
     let pool_full = hits.len() >= pool;
@@ -62,6 +66,7 @@ pub fn search(
         dated::keep(hits, &range, limit, &cancelled).map(|hits| Answer {
             partial: pool_full && hits.len() < limit,
             hits,
+            index_bytes,
         }),
     )
 }
@@ -172,7 +177,8 @@ mod tests {
             typed(&db, &index, "proj", 10).unwrap(),
             Some(Answer {
                 hits: Vec::new(),
-                partial: false
+                partial: false,
+                index_bytes: 0
             })
         );
     }
@@ -328,6 +334,17 @@ mod tests {
         assert_eq!(count(&db), 200);
         settings::set_results_limit(&db, 300).unwrap();
         assert_eq!(count(&db), 300);
+    }
+
+    #[test]
+    fn every_answer_says_how_much_memory_the_index_holds() {
+        let index = rooted(&std::env::temp_dir(), &["notes.txt", "report.pdf"]);
+        let db = db::open_in_memory().unwrap();
+        let answer = search(&db, &index, "notes", &Filters::default(), 10)
+            .unwrap()
+            .unwrap();
+        assert!(answer.index_bytes > 0);
+        assert_eq!(answer.index_bytes, index.memory_bytes());
     }
 
     #[test]

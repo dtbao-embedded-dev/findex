@@ -24,6 +24,8 @@ export type Answer = {
   hits: Hit[];
   /** A date was checked on only the best name matches: more may match. */
   partial: boolean;
+  /** Bytes of memory the search index holds. */
+  indexBytes: number;
 };
 
 /** Runs a search in Rust; null when a newer search replaced this one there. */
