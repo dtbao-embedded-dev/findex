@@ -23,8 +23,11 @@ import { DrivePicker } from "./DrivePicker";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
 
-/** The open right-click menu: where it was asked for, and for which result. */
-type OpenMenu = { at: { x: number; y: number }; index: number };
+/**
+ * The open right-click menu: where it was asked for, and for which result. The result
+ * itself, not its row: live updates can reorder the rows while the menu is open.
+ */
+type OpenMenu = { at: { x: number; y: number }; hit: Hit };
 
 /** The folder whose tags are being edited, where its menu was, and its tags now. */
 type Editing = { at: { x: number; y: number }; folder: Hit; tags: string[] };
@@ -153,14 +156,15 @@ export function SearchView({ total, active, onActiveChange }: Props) {
 
   const openMenuAtSelection = () => {
     const row = rows.current[state.selected];
-    if (row && state.hits[state.selected]) {
+    const hit = state.hits[state.selected];
+    if (row && hit) {
       const box = row.getBoundingClientRect();
-      setMenu({ at: { x: box.left + 40, y: box.bottom }, index: state.selected });
+      setMenu({ at: { x: box.left + 40, y: box.bottom }, hit });
     }
   };
 
   const pick = (action: MenuAction) => {
-    const hit = menu ? state.hits[menu.index] : undefined;
+    const hit = menu?.hit;
     closeMenu();
     if (hit && menu && action === "tags") {
       setEditing({ at: menu.at, folder: hit, tags: details[hit.path]?.tags ?? [] });
@@ -290,7 +294,7 @@ export function SearchView({ total, active, onActiveChange }: Props) {
                   onContextMenu={(event) => {
                     event.preventDefault();
                     setState((s) => ({ ...s, selected: index }));
-                    setMenu({ at: { x: event.clientX, y: event.clientY }, index });
+                    setMenu({ at: { x: event.clientX, y: event.clientY }, hit });
                   }}
                 >
                   <KindGlyph folder={hit.isDir} />
@@ -327,10 +331,10 @@ export function SearchView({ total, active, onActiveChange }: Props) {
         )}
       </div>
 
-      {menu !== null && state.hits[menu.index] && (
+      {menu !== null && (
         <ContextMenu
           at={menu.at}
-          items={menuFor(state.hits[menu.index]!)}
+          items={menuFor(menu.hit)}
           onPick={pick}
           onClose={closeMenu}
         />
