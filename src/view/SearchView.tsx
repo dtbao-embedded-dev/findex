@@ -19,7 +19,7 @@ import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
 import { loadTags, tagQuery } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
-import { DrivePicker } from "./DrivePicker";
+import { Sidebar } from "./Sidebar";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
 
@@ -83,7 +83,7 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     field.current?.focus();
   }, []);
 
-  // The tags in use, offered on the empty screen; read again after every edit.
+  // The tags in use, listed in the sidebar; read again after every edit.
   useEffect(() => {
     void loadTags().then(setTagsInUse);
   }, []);
@@ -199,159 +199,147 @@ export function SearchView({ total, active, onActiveChange }: Props) {
 
   const hasQuery = state.query.trim() !== "";
 
-  return (
-    <div className="search">
-      <div className="toolbar">
-        <DrivePicker
-          active={active}
-          onChange={(letter, error) => {
-            onActiveChange(letter);
-            if (error !== null) {
-              show(error, "error");
-            }
-            field.current?.focus();
-          }}
-        />
-        <label className="search-field">
-          <SearchGlyph />
-          <input
-            ref={field}
-            autoFocus
-            type="text"
-            spellCheck={false}
-            autoComplete="off"
-            placeholder={searchPlaceholder(active)}
-            aria-label="Search files and folders"
-            aria-controls="results"
-            value={state.query}
-            onChange={(event) => run(event.target.value)}
-            onKeyDown={onKeyDown}
-            onContextMenu={(event) => {
-              if (menuByKey.current) {
-                event.preventDefault();
-                menuByKey.current = false;
-              }
-            }}
-          />
-        </label>
-      </div>
+  const searchTag = (tag: string) => {
+    run(tagQuery(tag));
+    field.current?.focus();
+  };
 
-      <div className="results-scroll">
-        {state.error !== null ? (
-          <div className="empty">
-            <p className="error">{state.error}</p>
-          </div>
-        ) : !hasQuery ? (
-          <div className="empty">
-            <p className="empty-title">
-              Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
-            </p>
-            <p className="empty-hint">
-              Type part of a name. Narrow with <kbd>ext:pdf</kbd>, <kbd>type:folder</kbd> or{" "}
-              <kbd>tag:work</kbd>.
-            </p>
-            {tagsInUse.length > 0 && (
-              <div className="empty-tags" aria-label="Tags">
-                {tagsInUse.map((t) => (
-                  <button
-                    key={t.tag}
-                    type="button"
-                    className="tag-chip"
-                    title={`${t.folders} folder${t.folders === 1 ? "" : "s"}`}
-                    onClick={() => {
-                      run(tagQuery(t.tag));
-                      field.current?.focus();
+  return (
+    <div className="workspace">
+      <Sidebar
+        active={active}
+        onActiveChange={(letter, error) => {
+          onActiveChange(letter);
+          if (error !== null) {
+            show(error, "error");
+          }
+          field.current?.focus();
+        }}
+        tags={tagsInUse}
+        onTag={searchTag}
+      />
+      <main className="search">
+        <div className="search-header">
+          <label className="search-field">
+            <SearchGlyph />
+            <input
+              ref={field}
+              autoFocus
+              type="text"
+              spellCheck={false}
+              autoComplete="off"
+              placeholder={searchPlaceholder(active)}
+              aria-label="Search files and folders"
+              aria-controls="results"
+              value={state.query}
+              onChange={(event) => run(event.target.value)}
+              onKeyDown={onKeyDown}
+              onContextMenu={(event) => {
+                if (menuByKey.current) {
+                  event.preventDefault();
+                  menuByKey.current = false;
+                }
+              }}
+            />
+          </label>
+        </div>
+
+        <div className="results-scroll">
+          {state.error !== null ? (
+            <div className="empty">
+              <p className="error">{state.error}</p>
+            </div>
+          ) : !hasQuery ? (
+            <div className="empty">
+              <EmptyGlyph />
+              <p className="empty-title">
+                Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
+              </p>
+              <p className="empty-hint">
+                Type part of a name. Narrow with <kbd>ext:pdf</kbd>, <kbd>type:folder</kbd> or{" "}
+                <kbd>tag:work</kbd>.
+              </p>
+            </div>
+          ) : state.hits.length === 0 && state.tookMs !== null ? (
+            <div className="empty">
+              <p className="empty-title">No matches for &ldquo;{state.query.trim()}&rdquo;</p>
+            </div>
+          ) : (
+            <>
+              {state.tookMs !== null && (
+                <p className="results-meta">{describeResults(state.hits.length, state.tookMs)}</p>
+              )}
+              <ul id="results" className="results" role="listbox" aria-label="Results">
+                {state.hits.map((hit, index) => (
+                  <li
+                    key={hit.path}
+                    ref={(el) => {
+                      rows.current[index] = el;
+                    }}
+                    role="option"
+                    aria-selected={index === state.selected}
+                    className={index === state.selected ? "result is-selected" : "result"}
+                    onMouseDown={() => setState((s) => ({ ...s, selected: index }))}
+                    onDoubleClick={() => reveal(index)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setState((s) => ({ ...s, selected: index }));
+                      setMenu({ at: { x: event.clientX, y: event.clientY }, hit });
                     }}
                   >
-                    #{t.tag}
-                    <span className="tag-count">{t.folders}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : state.hits.length === 0 && state.tookMs !== null ? (
-          <div className="empty">
-            <p className="empty-title">No matches for &ldquo;{state.query.trim()}&rdquo;</p>
-          </div>
-        ) : (
-          <>
-            {state.tookMs !== null && (
-              <p className="results-meta">{describeResults(state.hits.length, state.tookMs)}</p>
-            )}
-            <ul id="results" className="results" role="listbox" aria-label="Results">
-              {state.hits.map((hit, index) => (
-                <li
-                  key={hit.path}
-                  ref={(el) => {
-                    rows.current[index] = el;
-                  }}
-                  role="option"
-                  aria-selected={index === state.selected}
-                  className={index === state.selected ? "result is-selected" : "result"}
-                  onMouseDown={() => setState((s) => ({ ...s, selected: index }))}
-                  onDoubleClick={() => reveal(index)}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    setState((s) => ({ ...s, selected: index }));
-                    setMenu({ at: { x: event.clientX, y: event.clientY }, hit });
-                  }}
-                >
-                  <KindGlyph folder={hit.isDir} />
-                  <span className="result-text">
-                    <span className="result-line">
-                      <span className="result-name">
-                        {highlight(hit.name, state.query).map((part, i) =>
-                          part.match ? <mark key={i}>{part.text}</mark> : part.text,
-                        )}
+                    <KindGlyph folder={hit.isDir} />
+                    <span className="result-text">
+                      <span className="result-line">
+                        <span className="result-name">
+                          {highlight(hit.name, state.query).map((part, i) =>
+                            part.match ? <mark key={i}>{part.text}</mark> : part.text,
+                          )}
+                        </span>
+                        {details[hit.path]?.tags.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            className="tag-chip is-small"
+                            tabIndex={-1}
+                            title={`Show folders tagged ${tag}`}
+                            onClick={() => searchTag(tag)}
+                          >
+                            #{tag}
+                          </button>
+                        ))}
                       </span>
-                      {details[hit.path]?.tags.map((tag) => (
-                        <button
-                          key={tag}
-                          type="button"
-                          className="tag-chip is-small"
-                          tabIndex={-1}
-                          title={`Show folders tagged ${tag}`}
-                          onClick={() => {
-                            run(tagQuery(tag));
-                            field.current?.focus();
-                          }}
-                        >
-                          #{tag}
-                        </button>
-                      ))}
+                      <span className="result-path">{folderOf(hit.path)}</span>
                     </span>
-                    <span className="result-path">{folderOf(hit.path)}</span>
-                  </span>
-                  <HitMeta meta={describeHit(details[hit.path])} />
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
+                    <HitMeta meta={describeHit(details[hit.path])} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
 
-      {menu !== null && (
-        <ContextMenu
-          at={menu.at}
-          items={menuFor(menu.hit)}
-          onPick={pick}
-          onClose={closeMenu}
-        />
-      )}
-      {editing !== null && (
-        <TagEditor
-          at={editing.at}
-          folder={editing.folder}
-          tags={editing.tags}
-          onChange={(tags) => {
-            setEditing((e) => e && { ...e, tags });
-            tagsChanged(editing.folder.path, tags);
-          }}
-          onClose={closeEditor}
-        />
-      )}
-      {notice !== null && <Toast key={notice.id} text={notice.text} tone={notice.tone} />}
+        {menu !== null && (
+          <ContextMenu
+            at={menu.at}
+            items={menuFor(menu.hit)}
+            onPick={pick}
+            onClose={closeMenu}
+          />
+        )}
+        {editing !== null && (
+          <TagEditor
+            at={editing.at}
+            folder={editing.folder}
+            tags={editing.tags}
+            onChange={(tags) => {
+              setEditing((e) => e && { ...e, tags });
+              tagsChanged(editing.folder.path, tags);
+            }}
+            onClose={closeEditor}
+          />
+        )}
+        {notice !== null && <Toast key={notice.id} text={notice.text} tone={notice.tone} />}
+      </main>
     </div>
   );
 }
@@ -366,6 +354,17 @@ function HitMeta({ meta }: { meta: { kind: string; modified: string } | null }) 
       <span>{meta.kind}</span>
       <span>{meta.modified}</span>
     </span>
+  );
+}
+
+/** A large, quiet magnifier over the empty screen. */
+function EmptyGlyph() {
+  return (
+    <svg className="empty-glyph" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="21" cy="21" r="13" fill="currentColor" opacity="0.12" />
+      <circle cx="21" cy="21" r="13" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      <path d="M31 31l9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
   );
 }
 

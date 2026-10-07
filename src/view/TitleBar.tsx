@@ -12,7 +12,9 @@ type Props = {
 export function TitleBar({ title, onMinimize, onToggleMaximize, onClose }: Props) {
   return (
     <header className="titlebar" data-tauri-drag-region>
-      <span data-tauri-drag-region>{title}</span>
+      <span className="titlebar-title" data-tauri-drag-region>
+        {title}
+      </span>
       <div className="titlebar-buttons">
         <button type="button" aria-label="Minimize" onClick={() => void onMinimize()}>
           &#x2014;

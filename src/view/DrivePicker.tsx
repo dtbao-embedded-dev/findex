@@ -15,7 +15,7 @@ type Props = {
 };
 
 /**
- * The drive the search covers, as a button in the toolbar. It opens a menu of every
+ * The drive the search covers, as a row in the sidebar. It opens a menu of every
  * drive; picking one indexes that drive alone. Esc or a click outside closes it.
  */
 export function DrivePicker({ active, onChange }: Props) {
@@ -104,7 +104,10 @@ export function DrivePicker({ active, onChange }: Props) {
         onClick={toggle}
       >
         <DriveGlyph removable={current?.removable ?? false} />
-        <span className="drive-button-label">{activeTitle(list.drives, active)}</span>
+        <span className="drive-button-text">
+          <span className="drive-button-label">{activeTitle(list.drives, active)}</span>
+          {current && <span className="drive-button-detail">{describeDrive(current).detail}</span>}
+        </span>
         <svg className="chevron" viewBox="0 0 12 12" aria-hidden="true">
           <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" />
         </svg>

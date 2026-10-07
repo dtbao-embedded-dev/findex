@@ -105,6 +105,16 @@
 
 ### Changed
 
+- The main window is redesigned after Finder: a sidebar on the left holds the drive
+  (with its free space) and the tags in use with their folder counts, and the search
+  sits on the right. Pressing a tag in the sidebar searches it, as the chips on the
+  empty screen did before.
+  - **Results:** one fixed-height row per result, and the selected row is filled with
+    the accent colour so it is found at a glance.
+  - **Chrome:** title bar, sidebar and status bar share one translucent material, and
+    menus, the tag editor and the update card float on a solid surface above them.
+  - **Dark mode, reduced motion, reduced transparency and more contrast** are all
+    followed, and the splash window picks up the same look.
 - The app is now named **Findex** in its window, title bar, tray tooltip, installer and
   release titles. The package, crate, bundle id (`com.dtbao.findex`) and repository stay
   lowercase, so installed copies and update URLs are unaffected.
