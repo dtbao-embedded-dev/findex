@@ -58,8 +58,14 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Request, String> {
         .filter(|dir| !dir.is_empty())
         .ok_or("--inbox is missing")?;
     let tag = normalize_tag(&tag.ok_or("--tag is missing")?)?;
+    // Explorer quotes the folder as `"%V"`; for a drive root that is `"E:\"`, whose
+    // `\"` the command line reads as a literal quote, giving `E:"`. A quote can
+    // never be part of a Windows path, so a trailing one is that backslash.
     let folder = folder
-        .map(|path| path.trim().to_owned())
+        .map(|path| match path.trim().strip_suffix('"') {
+            Some(root) => format!("{}\\", root.trim_end_matches('"')),
+            None => path.trim().to_owned(),
+        })
         .filter(|path| !path.is_empty() && !path.contains(['\r', '\n']))
         .ok_or("the folder is missing")?;
     Ok(Request {
@@ -128,6 +134,13 @@ mod tests {
         // The folder may come first: Explorer appends it after the options anyway.
         let first = parse(args(&[r"E:\x", "--tag", "doc", "--inbox", r"C:\in"])).unwrap();
         assert_eq!(first.folder, r"E:\x");
+    }
+
+    #[test]
+    fn a_drive_root_keeps_its_backslash() {
+        // `"E:\"` on the command line arrives as `E:"`.
+        let root = parse(args(&["--inbox", "i", "--tag", "doc", "E:\""])).unwrap();
+        assert_eq!(root.folder, r"E:\");
     }
 
     #[test]
