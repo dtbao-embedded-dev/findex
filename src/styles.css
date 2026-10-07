@@ -1,54 +1,110 @@
+/*
+ * Design tokens, after Apple's interface guidelines (the apple-design skill):
+ * system type with size-specific tracking, translucent materials for chrome,
+ * instant press feedback, critically damped motion, and the three accessibility
+ * preferences (reduced motion, reduced transparency, more contrast).
+ */
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #1f2328;
-  --muted: #59636e;
-  --accent: #2563eb;
-  --danger: #cf222e;
-  font-family: system-ui, "Segoe UI", sans-serif;
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --hairline: rgb(0 0 0 / 0.1);
+  --accent: #0071e3;
+  --accent-soft: rgb(0 113 227 / 0.12);
+  --danger: #d70015;
+  --material: rgb(245 245 247 / 0.72);
+  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.08), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.06);
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+  /* Settles without overshoot: the critically damped default. */
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --font-text: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  font: 100%/1.5 var(--font-text);
   background: var(--bg);
   color: var(--fg);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #16181d;
-    --fg: #e6e8eb;
-    --muted: #9198a1;
-    --accent: #6ea8fe;
-    --danger: #ff7b72;
+    --bg: #161618;
+    --surface: #1f1f22;
+    --fg: #f5f5f7;
+    --muted: #98989d;
+    --hairline: rgb(255 255 255 / 0.12);
+    --accent: #2997ff;
+    --accent-soft: rgb(41 151 255 / 0.18);
+    --danger: #ff453a;
+    --material: rgb(31 31 34 / 0.72);
+    --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.4), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.3);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: var(--fg);
+    --hairline: currentColor;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --material: var(--surface);
   }
 }
 
 body {
   margin: 0;
+  background: var(--bg);
 }
 
-main {
-  max-width: 32rem;
-  margin: 4rem auto;
-  padding: 0 1rem;
+h1 {
+  font-family: var(--font-display);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
-form {
+/* The main window: title bar, one screen that fills the rest, status bar. */
+.app {
+  position: relative;
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
 
 input {
-  flex: 1;
   padding: 0.5rem 0.75rem;
   font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+}
+
+input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.1875rem var(--accent-soft);
 }
 
 button {
   padding: 0.5rem 1rem;
   font: inherit;
+  font-weight: 500;
   color: #ffffff;
   background: var(--accent);
   border: none;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: transform 100ms ease-out, background-color 150ms var(--ease);
+}
+
+/* Feedback on press, not on release. */
+button:active {
+  transform: scale(0.97);
 }
 
 .error {
@@ -64,7 +120,10 @@ button {
   padding-left: 0.75rem;
   user-select: none;
   color: var(--muted);
-  border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  font-size: 0.8125rem;
+  letter-spacing: 0.01em;
+  background: var(--material);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 
 .titlebar-buttons button {
@@ -76,6 +135,10 @@ button {
   border-radius: 0;
 }
 
+.titlebar-buttons button:active {
+  transform: none;
+}
+
 .titlebar-buttons button:hover {
   background: color-mix(in srgb, var(--muted) 20%, transparent);
 }
@@ -83,4 +146,765 @@ button {
 .titlebar-buttons button[aria-label="Close"]:hover {
   color: #ffffff;
   background: #c42b1c;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button:disabled:active {
+  transform: none;
+}
+
+button:focus-visible {
+  outline: 0.1875rem solid var(--accent-soft);
+  outline-offset: 0.125rem;
+}
+
+/* Floating chrome under the title bar: a translucent strip, content scrolls below. */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--material);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* The drive picker: a quiet button in the toolbar and the menu it opens. */
+.drive-picker {
+  position: relative;
+  flex: none;
+}
+
+.drive-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 15rem;
+  padding: 0.5rem 0.625rem 0.5rem 0.75rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.drive-button:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--muted));
+}
+
+.drive-button .drive-glyph {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.drive-button-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.9375rem;
+  letter-spacing: -0.005em;
+}
+
+.chevron {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--muted);
+  transition: transform 200ms var(--ease);
+}
+
+[aria-expanded="true"] > .chevron {
+  transform: rotate(180deg);
+}
+
+/* Solid, not translucent: it floats over the translucent toolbar, and stacked
+   materials lose legibility. It grows out of the button that opened it. */
+.drive-menu {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 26rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: 0.375rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.18), var(--shadow);
+  transform-origin: top left;
+  animation: pop-in 200ms var(--ease) both;
+}
+
+.drive-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  color: var(--fg);
+  font-weight: 400;
+  text-align: left;
+  background: transparent;
+  border-radius: var(--radius-sm);
+}
+
+.drive-option:hover,
+.drive-option:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.drive-option:active {
+  transform: scale(0.99);
+}
+
+.drive-option.is-selected {
+  background: var(--accent-soft);
+}
+
+.drive-menu-note {
+  margin: 0.25rem 0.75rem 0.375rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(4px);
+  }
+}
+
+.drive-glyph {
+  width: 2rem;
+  height: 2rem;
+  color: var(--muted);
+}
+
+.is-selected .drive-glyph {
+  color: var(--accent);
+}
+
+.drive-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.drive-title {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.drive-detail {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.drive-meter {
+  height: 0.25rem;
+  margin-top: 0.375rem;
+  overflow: hidden;
+  background: var(--hairline);
+  border-radius: 999px;
+}
+
+.drive-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+  border-radius: inherit;
+}
+
+.is-selected .drive-meter > span {
+  background: var(--accent);
+}
+
+.drive-badge {
+  padding: 0.1875rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background: var(--bg);
+  border-radius: 999px;
+}
+
+.drive-badge[data-method="mft"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* A round check that fills when selected. */
+.drive-check {
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 1.5px solid var(--hairline);
+  border-radius: 50%;
+  transition:
+    background-color 200ms var(--ease),
+    border-color 200ms var(--ease);
+}
+
+.is-selected .drive-check {
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 0.875rem no-repeat;
+  border-color: var(--accent);
+}
+
+/* Search: one large field, results that follow every keystroke. */
+.search {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.search .toolbar {
+  align-items: center;
+  padding: 0.75rem 1rem;
+}
+
+.search-field {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.search-glyph {
+  position: absolute;
+  left: 0.875rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-field input {
+  width: 100%;
+  padding: 0.625rem 0.875rem 0.625rem 2.5rem;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.results-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0.5rem 0.5rem;
+  /* A soft edge where results scroll under the toolbar, instead of a divider. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 0.75rem);
+}
+
+.results-meta {
+  margin: 0.5rem 0.75rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4375rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: default;
+  user-select: none;
+}
+
+.result:hover {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+
+.result.is-selected {
+  background: var(--accent-soft);
+}
+
+.kind-glyph {
+  flex: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  color: var(--muted);
+}
+
+.kind-glyph.is-folder {
+  color: #4a9dff;
+}
+
+.result-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Type and size over the date: secondary, right-aligned, digits in columns. */
+.result-meta {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 40%;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: fade 150ms ease both;
+}
+
+.result-meta > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The name, then the folder's tags, on one line that never wraps. */
+.result-line {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.result-name,
+.result-path {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.result-name {
+  font-size: 0.9375rem;
+}
+
+.result-name mark {
+  color: inherit;
+  font-weight: 650;
+  background: none;
+}
+
+.result-path {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 12rem;
+  padding: 0 2rem;
+  text-align: center;
+}
+
+.empty-title {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+kbd {
+  padding: 0.0625rem 0.375rem;
+  font: 0.8125rem/1.4 ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0.3125rem;
+}
+
+/* The right-click menu: solid, compact, growing out of the point it opened at. */
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.3125rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.2), var(--shadow);
+  animation: pop-in 150ms var(--ease) both;
+}
+
+.context-menu button {
+  padding: 0.375rem 0.75rem;
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-align: left;
+  background: transparent;
+  border-radius: 0.3125rem;
+}
+
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  outline: none;
+  color: #ffffff;
+  background: var(--accent);
+}
+
+.context-menu button:active {
+  transform: none;
+}
+
+.context-separator {
+  height: 1px;
+  margin: 0.3125rem 0.5rem;
+  background: var(--hairline);
+}
+
+/* Tags: tinted chips. On a row they are small and quiet; elsewhere they are buttons. */
+.tag-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+.tag-chip.is-small {
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.tag-chip.is-suggestion {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+.tag-chip.is-suggestion:hover,
+.tag-chip.is-small:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.tag-chip button {
+  padding: 0 0.125rem;
+  color: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  background: transparent;
+  border-radius: 999px;
+}
+
+.tag-count {
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem;
+  max-width: 32rem;
+  margin-top: 1rem;
+}
+
+/* The tag editor: a solid panel that grows out of the menu that opened it. */
+.tag-editor {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: 18rem;
+  padding: 0.875rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.2), var(--shadow);
+  animation: pop-in 150ms var(--ease) both;
+}
+
+.tag-editor-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tag-editor-title strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.tag-none {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.tag-error {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+/* A short confirmation over the status bar; errors stay a little longer. */
+.toast {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  z-index: 15;
+  max-width: min(32rem, calc(100% - 2rem));
+  padding: 0.4375rem 0.875rem;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: toast-in 250ms var(--ease) both;
+  pointer-events: none;
+}
+
+.toast.is-error {
+  color: var(--danger);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.5rem);
+  }
+}
+
+/* An update ready to install, or a tray check's answer: a card above the status bar
+   that rises into place. */
+.update-banner {
+  position: absolute;
+  right: 1rem;
+  bottom: 2.5rem;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: min(30rem, calc(100% - 2rem));
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.18), var(--shadow);
+  animation: rise 250ms var(--ease) both;
+}
+
+.update-banner > span {
+  flex: 1;
+  padding: 0.25rem 0;
+}
+
+.update-banner.is-error {
+  color: var(--danger);
+}
+
+.update-banner button {
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.update-banner .is-quiet {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* The status bar: translucent, one line, a dot that breathes while indexing. */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+  padding: 0 0.875rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  background: var(--material);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+.status-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: #30d158;
+}
+
+.status-dot.is-busy {
+  background: var(--accent);
+  animation: breathe 1s ease-in-out infinite alternate;
+}
+
+.status-note {
+  margin-left: auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 50%;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.35;
+  }
+}
+
+/* The splash window: one calm card, the icon materializing into place. */
+.splash-page {
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+  background: radial-gradient(120% 90% at 50% 0%, var(--surface) 0%, var(--bg) 100%);
+}
+
+.splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.splash-icon {
+  width: 6rem;
+  height: 6rem;
+  filter: drop-shadow(0 0.5rem 1rem rgb(0 0 0 / 0.18));
+  animation: materialize 600ms var(--ease) both;
+}
+
+.splash-name {
+  margin: 1rem 0 0.25rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+  animation: rise 600ms var(--ease) 80ms both;
+}
+
+.splash-version {
+  margin: 0;
+  min-height: 1.3em;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  animation: rise 600ms var(--ease) 140ms both;
+}
+
+.splash-copyright {
+  position: absolute;
+  bottom: 1rem;
+  left: 0;
+  right: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+}
+
+@keyframes materialize {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+    filter: blur(6px) drop-shadow(0 0.5rem 1rem rgb(0 0 0 / 0));
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+}
+
+/* Reduced motion keeps the fade that aids reading and drops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+  }
+
+  .splash-icon,
+  .splash-name,
+  .splash-version {
+    animation: fade 200ms ease both;
+  }
+
+  .status-dot.is-busy {
+    animation: none;
+  }
+
+  .drive-menu,
+  .context-menu,
+  .tag-editor,
+  .update-banner,
+  .toast {
+    animation: fade 150ms ease both;
+  }
+
+  button:active {
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }

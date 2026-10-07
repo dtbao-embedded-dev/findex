@@ -19,7 +19,19 @@
         "minWidth": 800,
         "minHeight": 560,
         "center": true,
-        "decorations": false
+        "decorations": false,
+        "visible": false
+      },
+      {
+        "label": "splash",
+        "url": "splash.html",
+        "title": "Findex",
+        "width": 360,
+        "height": 280,
+        "center": true,
+        "resizable": false,
+        "decorations": false,
+        "skipTaskbar": true
       }
     ],
     "security": {
@@ -28,6 +40,7 @@
   },
   "bundle": {
     "active": true,
+    "copyright": "© 2026 dtbao",
     "targets": [
       "nsis"
     ],

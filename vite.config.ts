@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -19,6 +21,13 @@ export default defineConfig({
   build: {
     // WebView2 on Windows 10+ tracks Chromium, so no legacy transpilation.
     target: "esnext",
+    rollupOptions: {
+      // Two pages: the main window and the splash window shown while it loads.
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        splash: fileURLToPath(new URL("./splash.html", import.meta.url)),
+      },
+    },
   },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],

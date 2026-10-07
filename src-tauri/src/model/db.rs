@@ -10,7 +10,15 @@ use crate::error::{AppError, AppResult};
 
 /// Applied in order; the Nth entry produces schema version N. Append, never edit:
 /// a shipped migration has already run on someone's machine.
-const MIGRATIONS: &[&str] = &["CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);"];
+const MIGRATIONS: &[&str] = &[
+    "CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+    // Folder tags; a path matches without case, as Windows paths do.
+    "CREATE TABLE folder_tag (\
+         path TEXT NOT NULL COLLATE NOCASE, \
+         tag TEXT NOT NULL, \
+         PRIMARY KEY (path, tag)); \
+     CREATE INDEX folder_tag_by_tag ON folder_tag (tag);",
+];
 
 /// The connection every command shares through `tauri::State`.
 pub struct Db(Mutex<Connection>);
@@ -21,6 +29,14 @@ pub fn open(path: &Path) -> AppResult<Db> {
         std::fs::create_dir_all(dir)?;
     }
     let mut conn = Connection::open(path)?;
+    migrate(&mut conn)?;
+    Ok(Db(Mutex::new(conn)))
+}
+
+/// A migrated database that lives only as long as the value, for tests of other modules.
+#[cfg(test)]
+pub fn open_in_memory() -> AppResult<Db> {
+    let mut conn = Connection::open_in_memory()?;
     migrate(&mut conn)?;
     Ok(Db(Mutex::new(conn)))
 }
@@ -41,7 +57,7 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
 }
 
 impl Db {
-    fn conn(&self) -> AppResult<MutexGuard<'_, Connection>> {
+    pub(crate) fn conn(&self) -> AppResult<MutexGuard<'_, Connection>> {
         self.0
             .lock()
             .map_err(|_| AppError::Invalid("the database is unavailable after a crash".into()))
@@ -94,6 +110,28 @@ mod tests {
         let db = memory();
         migrate(&mut db.conn().unwrap()).unwrap();
         assert_eq!(version(&db), MIGRATIONS.len() as i64);
+    }
+
+    #[test]
+    fn a_version_one_database_keeps_its_settings_and_gains_folder_tags() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(MIGRATIONS[0]).unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+        conn.execute("INSERT INTO setting VALUES ('scan.drives', '[\"C\"]')", [])
+            .unwrap();
+        migrate(&mut conn).unwrap();
+        let db = Db(Mutex::new(conn));
+        assert_eq!(
+            db.get_setting("scan.drives").unwrap().as_deref(),
+            Some("[\"C\"]")
+        );
+        db.conn()
+            .unwrap()
+            .execute(
+                "INSERT INTO folder_tag (path, tag) VALUES ('C:\\a', 'x')",
+                [],
+            )
+            .unwrap();
     }
 
     #[test]

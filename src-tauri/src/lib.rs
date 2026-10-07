@@ -4,12 +4,22 @@
 mod commands;
 mod error;
 mod model;
+mod splash;
 mod tray;
+
+use std::sync::Arc;
 
 use tauri::Manager;
 
+use model::index::service::IndexService;
+
 /// Builds and runs the application. `main.rs` turns an error into an exit code.
 pub fn run() -> tauri::Result<()> {
+    // Before anything else, so the single-instance plugin sees only the copy that
+    // keeps running.
+    if model::elevation::relaunch_if_needed() {
+        return Ok(());
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             tray::show_main(app);
@@ -18,13 +28,21 @@ pub fn run() -> tauri::Result<()> {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             tray::init(app)?;
-            let path = app.path().app_data_dir()?.join("findex.sqlite3");
-            app.manage(model::db::open(&path)?);
+            let data = app.path().app_data_dir()?;
+            let db = model::db::open(&data.join("findex.sqlite3"))?;
+            let index = Arc::new(IndexService::with_snapshots(data.join("index")));
+            index.start_saved(&db, commands::status_emitter(app.handle()))?;
+            app.manage(db);
+            app.manage(index);
+            splash::arm_fallback(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing hides to the tray; the tray menu's Quit ends the app.
+            // Closing main hides to the tray; the tray menu's Quit ends the app.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" {
+                    return;
+                }
                 api.prevent_close();
                 if let Err(err) = window.hide() {
                     eprintln!("could not hide the window: {err}");
@@ -32,9 +50,32 @@ pub fn run() -> tauri::Result<()> {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            commands::greet,
             commands::get_setting,
-            commands::set_setting
+            commands::set_setting,
+            commands::app_about,
+            commands::splash_ready,
+            commands::list_drives,
+            commands::get_active_drive,
+            commands::set_active_drive,
+            commands::index_status,
+            commands::save_index,
+            commands::search_names,
+            commands::describe_paths,
+            commands::reveal_path,
+            commands::open_folder,
+            commands::open_terminal,
+            commands::open_claude,
+            commands::add_tag,
+            commands::remove_tag,
+            commands::list_tags
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Live updates since the last save would otherwise be replayed from the
+            // journal, or lost to a rebuild if it wrapped meanwhile.
+            if let tauri::RunEvent::Exit = event {
+                app.state::<Arc<IndexService>>().save_changed();
+            }
+        });
+    Ok(())
 }

@@ -8,6 +8,100 @@
 
 - Release builds are signed for the updater: the real public key is embedded, so the
   first published version can receive later updates without a manual reinstall.
+- A file and folder name search engine. It keeps each drive's names in one compact
+  in-memory index and searches it on every core at once. Every typed word must appear
+  in the name; `ext:pdf;docx` and `type:file` / `type:folder` narrow the results.
+  Matches rank as exact name, then prefix, then word start, then anywhere. A million
+  names answer in about 15 ms, so results can follow every keystroke.
+- A splash window shows the icon, version and copyright while the main window loads.
+  It stays up for at least 0.9 s so it never just flashes. If the main window fails to
+  report ready, it is shown anyway after 10 s. The copyright is read from
+  `bundle.copyright` in `tauri.conf.json`, the same value the installer uses.
+- The app opens straight on search and indexes one drive at a time, the system drive
+  on the first launch. A drive button beside the search field lists every local drive
+  with its label, free space and filesystem, and whether it is indexed instantly (NTFS)
+  or by a folder scan. Picking one indexes that drive alone; the drive it replaces
+  keeps its saved index, so coming back to it is quick. Network and optical drives are
+  not offered: a disconnected network drive can hang the list.
+- The active drive is indexed in the background as soon as the app starts, and again
+  whenever another drive is picked:
+  - **NTFS drives:** read straight from the drive's file table, which takes seconds for
+    millions of names.
+  - **Other drives:** a parallel folder scan that never follows junctions or links.
+  - **While re-indexing:** a drive's previous results stay searchable until its new
+    index replaces them.
+- The main window is a search screen:
+  - **Search as you type:** results appear on every keystroke, with the matched part
+    of each name in bold and its folder underneath. An answer that arrives late is
+    never allowed to replace a newer one.
+  - **Keyboard:** ↑/↓ move the selection, Enter (or a double click) shows the file in
+    Explorer, and Esc clears the field.
+  - **Status bar:** shows indexing progress per drive, then how many items can be
+    searched, plus why a drive fell back to a folder scan.
+  - **Measured:** on 6.3 million names in a development build, a typical query
+    answers in about 30 ms, round trip included.
+- Each drive's index is saved to `%APPDATA%\com.dtbao.findex\index\<drive>.fxi` after
+  it is built.
+  - **At the next launch:** the saved index is loaded first, so search works within
+    about a second while the drive is indexed again behind it. A million names load in
+    about 0.2 s.
+  - **Damaged files:** a damaged or outdated file is detected by its checksum and
+    version, then ignored and rebuilt.
+- NTFS drives stay current while the app runs: created, renamed, moved and deleted
+  files show up in results within about a second, read from the drive's change
+  journal.
+  - **Next launch:** the saved index catches up from the journal instead of being
+    rebuilt.
+  - **Journal gaps:** if the journal no longer reaches back that far, the drive is
+    rebuilt once and followed again.
+  - **When the index is saved:** every ten minutes while it changes, and when the app
+    quits.
+- A search typed before indexing finished now refreshes on its own when more of the
+  drive becomes searchable, instead of staying on "No matches". A background refresh
+  keeps the selected file selected.
+- Searches no longer stall while a drive is being folder-scanned. The scan now runs on
+  its own threads, so it no longer competes with search for the shared pool.
+- Right-clicking a result opens its actions; the menu key or Shift+F10 opens them for
+  the selected result, and Esc closes them.
+  - **Folders:** Open with Claude (Claude Code, `claude`, in a terminal at the folder),
+    Open folder (File Explorer), Open in Terminal (Windows Terminal, or PowerShell
+    without it), Copy path and Copy name.
+  - **Files:** Show in Explorer, Copy path and Copy name.
+  - **Rights:** terminals and Claude start with your normal rights, not the
+    administrator rights Findex runs with, so a tool opened from a search cannot
+    change the system by surprise. If that is not possible, they are not started.
+  - **Folder names:** the folder becomes the terminal's working directory instead of
+    an argument, so a name with spaces or `;` opens the right place.
+  - **Untrusted folders:** Claude Code is started by the full path found on PATH, and
+    programs are not looked up in the folder, so a `claude.cmd` inside a cloned repo
+    cannot run in its place. If Findex cannot tell whether it is elevated, it refuses
+    to start them rather than risk administrator rights.
+  - A copy is confirmed by a short note above the status bar; a failure (for example
+    `claude` not found on PATH) is shown there in red.
+- Each result shows what it is, how big it is and when it last changed, at the right
+  of its row: Explorer's name for the type (for example "PDF Document" or "File
+  folder"), the size for files, and the last-modified date in your system's format.
+  They are read from the disk after the results appear, so searching is as fast as
+  before; a page of 200 results takes a few milliseconds more to fill in.
+- Folders can be tagged. Right-click a folder and choose Tags… to add a tag (Enter) or
+  remove one; tags already in use are offered with one press.
+  - **Finding them:** `tag:work` lists the folders tagged `work`, on any drive, and
+    combines with name words (`proj tag:work`) and several tags (`tag:work;fw`).
+  - **Where they show:** as chips beside a folder's name in the results, and on the
+    empty search screen with how many folders carry each; pressing one searches it.
+  - **What a tag is:** one word of up to 32 letters, digits, `-` or `_`, stored in
+    lower case. Tags are saved in the app's database, keyed by the folder's path, so a
+    folder that is renamed or moved loses its tags.
+- Findex updates itself. It checks for a newer signed release 10 seconds after it
+  opens and every six hours, downloads it in the background, then offers "Restart
+  now" or "Later" in a card above the status bar. "Later" keeps the download and
+  offers it again at the next check.
+  - **From the tray:** "Check for updates" checks at once and answers either way:
+    "Findex is up to date", or why the check failed.
+  - **Quiet by default:** a background check that finds nothing, or cannot reach the
+    server (offline, or no release published yet), shows nothing.
+  - **Before installing:** the drive index changed by live updates is saved first,
+    since the installer closes the app without the usual quit.
 
 ### Changed
 
@@ -16,7 +110,22 @@
   lowercase, so installed copies and update URLs are unaffected.
 - A real app icon (folder with a magnifier) replaces the placeholder; its source is
   `src-tauri/icons/icon.svg` and the README now shows it.
+- The app now asks for administrator rights (UAC) whenever it opens, because reading
+  an NTFS file table requires them.
+  - **Installed app:** asks through its manifest.
+  - **Build started any other way:** relaunches itself through UAC.
+  - **If you say No:** it still opens and indexes by folder scan.
+  - **`pnpm tauri dev`:** never relaunched, since that would stop the dev server. Run
+    the terminal as administrator instead.
+- Right-clicking no longer opens the browser's own menu (Back, Reload, Inspect…), which
+  belongs to a web page rather than a desktop app. Text fields keep it, for cut, copy
+  and paste.
+- The status bar explains a folder scan in plain words. When rights are missing it
+  says "open Findex as administrator for instant search and live updates" instead of
+  "Access is denied (os error 5)".
 
 ### Fixed
 
 ### Removed
+
+- The scaffold's greeting demo (`greet` command and its view), replaced by search.

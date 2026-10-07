@@ -18,9 +18,11 @@ keywords: findex, file search, content search, folder tags, quick open, launcher
 
 ## Responsibility
 
-Stated by the user on 2026-10-07 when the repository was scaffolded. None of these
-capabilities exists in code yet; the scaffold only carries a greeting example and a
-settings table.
+Stated by the user on 2026-10-07 when the repository was scaffolded. Name search is
+built (see [ADR-0002](../adr/adr-0002-name-index.md)). Folder tags and quick open
+(Explorer, terminal, Claude Code, copy path or name) were built later the same day (see
+[actions, tags and updates](../behavior/actions-tags-updates.md)). Opening in any
+chosen app, and content search, are not built yet.
 
 | Capability | What the user asked for |
 |------------|-------------------------|
@@ -35,8 +37,8 @@ settings table.
   feature was chosen (see [adr-0001](../adr/adr-0001-scaffold-choices.md)).
 - The full-text index approach (SQLite FTS5 vs a dedicated engine) is open and
   unresolved until decided.
-- Quick open will need Tauri capabilities (shell/opener) that the scaffold does not
-  grant; `capabilities/default.json` must be widened deliberately.
+- Quick open needed no new Tauri capability: launches go through Rust commands
+  (`launch.rs`), so `capabilities/default.json` was not widened.
 
 ## See also
 
