@@ -12,6 +12,15 @@ updated: 2026-10-07
 
 ## What works
 
+- **Redesign, filters, tags, settings (branch `feat/ui-redesign-filters`,
+  2a7e9c9..d708739, 2026-10-07):** Finder-style sidebar and Apple-style screens
+  (light/dark screenshots); title bar icon + `v0.1.0`; date/kind/tag filters with
+  on-disk date checks (`partial` when the pool runs out); colour + custom tag catalog
+  (migration 3); results per search 200..10000 with a virtualized list; re-scan
+  button; index RAM on the results line. Checked over CDP on E: (1.18 M names,
+  unelevated). An independent review's 7 confirmed findings are fixed in
+  3521159, d708739.
+
 - **Splash window:** shows the icon, version and copyright. Main is revealed once it is
   ready, with a 10 s fallback. Checked by screenshot.
 - **One active drive (2026-10-07, b5e17c3):** no setup screen; the first launch saves
@@ -62,6 +71,13 @@ updated: 2026-10-07
 4. Opening a result in any chosen app (only Explorer, terminal and Claude exist).
 
 ## Known issues
+
+- **Re-scan that fails** (branch `feat/ui-redesign-filters`): the old index stays
+  searchable but its journal follower was stopped by the new run, so it is not kept
+  current until the next start; the status only says "Failed". Not reproduced (needs
+  a failing MFT read and walk).
+- **Re-scan of an NTFS drive under Administrator** (full MFT read) is not run yet: a
+  human check like the other MFT ones.
 
 - `main` branch protection must be enabled on GitHub by hand.
 - **Unverified journal case:** a journal deleted and recreated may make
