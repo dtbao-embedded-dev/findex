@@ -1,4 +1,5 @@
 import { getScanDrives, listDrives, setScanDrives, type Drive } from "../model/drives";
+import { startIndex } from "../model/index";
 
 /** What the drive setup screen shows. */
 export type SetupState = {
@@ -68,16 +69,26 @@ export function canContinue(state: SetupState): boolean {
   return state.selected.length > 0 && !state.saving;
 }
 
-/** Saves the choice. `saved` is true only when Rust stored it. */
+/**
+ * Saves the choice and reindexes with it. `saved` is true once both happened; if
+ * indexing fails to start, the error keeps the screen open to retry.
+ */
 export async function saveSetup(
   state: SetupState,
   save: (letters: string[]) => Promise<string[]> = setScanDrives,
+  reindex: () => Promise<void> = startIndex,
 ): Promise<{ state: SetupState; saved: boolean }> {
   if (state.selected.length === 0) {
     return { state: { ...state, error: "Choose at least one drive." }, saved: false };
   }
+  let selected: string[];
   try {
-    const selected = await save(state.selected);
+    selected = await save(state.selected);
+  } catch (err) {
+    return { state: { ...state, saving: false, error: String(err) }, saved: false };
+  }
+  try {
+    await reindex();
     return { state: { ...state, selected, saving: false, error: null }, saved: true };
   } catch (err) {
     return { state: { ...state, saving: false, error: String(err) }, saved: false };

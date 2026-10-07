@@ -7,7 +7,11 @@ mod model;
 mod splash;
 mod tray;
 
+use std::sync::Arc;
+
 use tauri::Manager;
+
+use model::index::service::IndexService;
 
 /// Builds and runs the application. `main.rs` turns an error into an exit code.
 pub fn run() -> tauri::Result<()> {
@@ -20,7 +24,11 @@ pub fn run() -> tauri::Result<()> {
         .setup(|app| {
             tray::init(app)?;
             let path = app.path().app_data_dir()?.join("findex.sqlite3");
-            app.manage(model::db::open(&path)?);
+            let db = model::db::open(&path)?;
+            let index = Arc::new(IndexService::default());
+            index.start_saved(&db, commands::status_emitter(app.handle()))?;
+            app.manage(db);
+            app.manage(index);
             splash::arm_fallback(app.handle());
             Ok(())
         })
@@ -44,7 +52,10 @@ pub fn run() -> tauri::Result<()> {
             commands::splash_ready,
             commands::list_drives,
             commands::get_scan_drives,
-            commands::set_scan_drives
+            commands::set_scan_drives,
+            commands::start_index,
+            commands::index_status,
+            commands::search_names
         ])
         .run(tauri::generate_context!())
 }

@@ -508,7 +508,8 @@ mod tests {
     }
 
     /// Release-mode benchmark over one million synthetic names:
-    /// `cargo test --release -- --ignored perf_one_million --nocapture`
+    /// `cargo test --release --lib -- --ignored perf_one_million --nocapture`
+    /// (`--lib`: the release app binary asks for administrator rights)
     #[test]
     #[ignore]
     fn perf_one_million() {

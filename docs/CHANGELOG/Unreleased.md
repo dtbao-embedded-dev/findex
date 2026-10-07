@@ -22,6 +22,13 @@
   as indexed instantly and kept current; other filesystems get a folder scan. The
   choice is saved, and the Drives button reopens the screen to change it. Network and
   optical drives are not offered: a disconnected network drive can hang the list.
+- Chosen drives are indexed in the background as soon as the app starts, and again
+  whenever the choice changes:
+  - **NTFS drives:** read straight from the drive's file table, which takes seconds for
+    millions of names.
+  - **Other drives:** a parallel folder scan that never follows junctions or links.
+  - **While re-indexing:** a drive's previous results stay searchable until its new
+    index replaces them.
 
 ### Changed
 
@@ -30,6 +37,9 @@
   lowercase, so installed copies and update URLs are unaffected.
 - A real app icon (folder with a magnifier) replaces the placeholder; its source is
   `src-tauri/icons/icon.svg` and the README now shows it.
+- The installed app now asks for administrator rights (UAC) when it starts. Reading
+  an NTFS file table requires them. Development builds still run unelevated and use
+  the folder scan.
 
 ### Fixed
 

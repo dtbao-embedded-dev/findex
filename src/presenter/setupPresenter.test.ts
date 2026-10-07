@@ -84,30 +84,55 @@ describe("selection", () => {
 });
 
 describe("saveSetup", () => {
-  it("stores the choice through the model", async () => {
-    let stored: string[] = [];
-    const result = await saveSetup({ ...initialSetup, selected: ["C", "D"] }, async (l) => {
-      stored = l;
-      return l;
-    });
-    expect(stored).toEqual(["C", "D"]);
+  it("stores the choice, then reindexes", async () => {
+    const calls: string[] = [];
+    const result = await saveSetup(
+      { ...initialSetup, selected: ["C", "D"] },
+      async (l) => {
+        calls.push(`save ${l.join(",")}`);
+        return l;
+      },
+      async () => {
+        calls.push("reindex");
+      },
+    );
+    expect(calls).toEqual(["save C,D", "reindex"]);
     expect(result.saved).toBe(true);
+  });
+
+  it("does not reindex when saving fails", async () => {
+    let reindexed = false;
+    const result = await saveSetup(
+      { ...initialSetup, selected: ["C"] },
+      async () => Promise.reject("disk full"),
+      async () => {
+        reindexed = true;
+      },
+    );
+    expect(result).toMatchObject({ saved: false, state: { error: "disk full" } });
+    expect(reindexed).toBe(false);
   });
 
   it("refuses an empty choice without calling the model", async () => {
     let called = false;
-    const result = await saveSetup(initialSetup, async (l) => {
-      called = true;
-      return l;
-    });
+    const result = await saveSetup(
+      initialSetup,
+      async (l) => {
+        called = true;
+        return l;
+      },
+      async () => {},
+    );
     expect(result.saved).toBe(false);
     expect(result.state.error).toBe("Choose at least one drive.");
     expect(called).toBe(false);
   });
 
   it("shows the model's refusal", async () => {
-    const result = await saveSetup({ ...initialSetup, selected: ["C"] }, async () =>
-      Promise.reject("choose at least one drive"),
+    const result = await saveSetup(
+      { ...initialSetup, selected: ["C"] },
+      async () => Promise.reject("choose at least one drive"),
+      async () => {},
     );
     expect(result).toMatchObject({ saved: false, state: { error: "choose at least one drive" } });
   });

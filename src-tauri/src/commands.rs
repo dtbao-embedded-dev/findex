@@ -2,13 +2,27 @@
 //! A rule written here instead of in `model/` exists twice the day a second
 //! caller needs it.
 
-use crate::error::AppResult;
+use std::sync::Arc;
+
+use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
 use crate::model::db::Db;
 use crate::model::drives::{self, Drive};
 use crate::model::greeting;
+use crate::model::index::service::{Emit, IndexService, Status};
+use crate::model::search::{Hit, DEFAULT_LIMIT};
 use crate::splash;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
+
+/// Forwards index progress to the frontend as the `index-status` event.
+pub fn status_emitter(app: &AppHandle) -> Emit {
+    let app = app.clone();
+    Arc::new(move |status: &Status| {
+        if let Err(err) = app.emit("index-status", status) {
+            eprintln!("could not send the index status: {err}");
+        }
+    })
+}
 
 #[tauri::command]
 pub fn greet(name: &str) -> AppResult<String> {
@@ -58,4 +72,35 @@ pub fn get_scan_drives(db: State<'_, Db>) -> AppResult<Option<Vec<String>>> {
 #[tauri::command]
 pub fn set_scan_drives(db: State<'_, Db>, letters: Vec<String>) -> AppResult<Vec<String>> {
     drives::save_selection(&db, &letters)
+}
+
+/// (Re)indexes the drives saved in setup; progress arrives as `index-status` events.
+#[tauri::command]
+pub fn start_index(
+    app: AppHandle,
+    db: State<'_, Db>,
+    index: State<'_, Arc<IndexService>>,
+) -> AppResult<()> {
+    index.start_saved(&db, status_emitter(&app))
+}
+
+#[tauri::command]
+pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
+    Ok(index.status())
+}
+
+/// Runs off the async runtime: a query is CPU work across every core. Resolves to
+/// null when a newer query replaced this one.
+#[tauri::command]
+pub async fn search_names(
+    index: State<'_, Arc<IndexService>>,
+    query: String,
+    limit: Option<usize>,
+) -> AppResult<Option<Vec<Hit>>> {
+    let index = Arc::clone(&index);
+    tauri::async_runtime::spawn_blocking(move || {
+        index.search(&query, limit.unwrap_or(DEFAULT_LIMIT))
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))
 }
