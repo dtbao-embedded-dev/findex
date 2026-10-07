@@ -13,7 +13,9 @@ What it does, in order:
        plus the crate's own entry in a tracked Cargo.lock next to a Cargo.toml
     3. commits exactly those files plus the changelog as `chore(release): v0.2.0`
     4. tags the release commit `v0.2.0`
-    5. merges the current branch into `developing`, then `developing` into `main`
+    5. merges the current branch into `developing`, then `developing` into `main`;
+       from a `release/*` branch instead into `main`, then back into `developing`,
+       so work that only exists on `developing` never ships
     6. prints the push commands, and runs them only with --push
 
 The release notes come from `docs/CHANGELOG/v0.2.0.md` if it exists, otherwise
@@ -41,6 +43,7 @@ import tempfile
 VERSION_FILES = ["package.json", "src-tauri/Cargo.toml"]
 MAIN = "main"
 DEV = "developing"
+RELEASE_PREFIX = "release/"
 CHANGELOG_DIR = "docs/CHANGELOG"
 UNRELEASED = "Unreleased.md"
 # ----------------------------------------------------------------------------
@@ -277,12 +280,18 @@ def set_badge(version):
         fh.write(text)
 
 
+def merge_steps(branch):
+    """The (into, source) merges a release from `branch` needs, in order."""
+    if branch.startswith(RELEASE_PREFIX):
+        return [(MAIN, branch), (DEV, branch)]
+    if branch == DEV:
+        return [(MAIN, DEV)]
+    return [(DEV, branch), (MAIN, DEV)]
+
+
 def merge_chain(branch):
-    """current -> developing -> main, then back to where we started."""
-    steps = []
-    if branch != DEV:
-        steps.append((DEV, branch))
-    steps.append((MAIN, DEV))
+    """Run merge_steps(branch), then return to where we started."""
+    steps = merge_steps(branch)
     try:
         for into, source in steps:
             git("switch", into)
@@ -305,7 +314,7 @@ def push(version, branch):
     if not remote:
         print("no git remote configured — nothing to push")
         return
-    git("push", remote[0], MAIN, DEV, branch if branch != DEV else MAIN)
+    git("push", remote[0], *dict.fromkeys([MAIN, DEV, branch]))
     git("push", remote[0], version)
     print(f"pushed {MAIN}, {DEV}, {branch} and tag {version} to {remote[0]}")
 
@@ -325,9 +334,8 @@ def release(version, dry_run=False, do_push=False):
             print(f"  would update {path}")
         print(f"  would commit  chore(release): {version}")
         print(f"  would tag     {version}")
-        if branch != DEV:
-            print(f"  would merge   {branch} -> {DEV}")
-        print(f"  would merge   {DEV} -> {MAIN}")
+        for into, source in merge_steps(branch):
+            print(f"  would merge   {source} -> {into}")
         print("  would push    " + ("yes" if do_push else "no (run with --push)"))
         return 0
 
@@ -345,14 +353,13 @@ def release(version, dry_run=False, do_push=False):
 
     print(f"OK released {version} (was {previous})")
     print(f"   commit  chore(release): {version}")
-    print(f"   merged  {branch} -> {DEV} -> {MAIN}" if branch != DEV
-          else f"   merged  {DEV} -> {MAIN}")
+    print("   merged  " + ", ".join(f"{s} -> {i}" for i, s in merge_steps(branch)))
     if do_push:
         push(version, branch)
     else:
         remote = (git("remote", check=False).stdout.split() or ["origin"])[0]
         print("   not pushed. When you are ready:")
-        print(f"     git push {remote} {MAIN} {DEV} {branch}")
+        print(f"     git push {remote} {' '.join(dict.fromkeys([MAIN, DEV, branch]))}")
         print(f"     git push {remote} {version}")
     return 0
 
@@ -470,6 +477,41 @@ def selftest():
         assert read(CHANGELOG_DIR, UNRELEASED) == UNRELEASED_SKELETON, \
             "no fresh Unreleased.md skeleton was left behind"
         assert not check_tag("v0.2.0"), "--check-tag rejected the released crate"
+
+        # A release branch goes straight to main and back into developing, so work
+        # that only exists on developing never reaches main.
+        REPO = os.path.join(tmp, "release-branch")
+        VERSION_FILES = ["package.json"]
+        subprocess.run(["git", "init", "-b", MAIN, REPO], capture_output=True, check=True)
+        for path, body in (
+            ("package.json", '{\n  "name": "demo",\n  "version": "0.1.0"\n}\n'),
+            ("README.md", "# demo\n\n![Version](https://img.shields.io/badge/version-v0.1.0-blue)\n"),
+            (f"{CHANGELOG_DIR}/{UNRELEASED}", UNRELEASED_SKELETON + "\n- A fix.\n"),
+        ):
+            full = os.path.join(REPO, *path.split("/"))
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(body)
+        with open(os.path.join(REPO, ".git", "config"), "a", encoding="utf-8") as fh:
+            fh.write("[user]\n\tname = selftest\n\temail = selftest@example.com\n")
+        for args in (["add", "-A"], ["commit", "-m", "chore: init"], ["tag", "v0.1.0"],
+                     ["branch", "release/v0.2"], ["switch", "-c", DEV],
+                     ["commit", "--allow-empty", "-m", "feat: unfinished"],
+                     ["switch", "release/v0.2"]):
+            subprocess.run(["git", "-C", REPO] + args, capture_output=True, check=True)
+        unfinished = show("-C", REPO, "rev-parse", DEV)
+
+        assert release("v0.2.0") == 0
+
+        def is_ancestor(commit, branch):
+            return subprocess.run(["git", "-C", REPO, "merge-base", "--is-ancestor", commit,
+                                   branch], capture_output=True).returncode == 0
+
+        assert show("-C", REPO, "rev-parse", "--abbrev-ref", "HEAD") == "release/v0.2", \
+            "did not return to the release branch"
+        assert is_ancestor("v0.2.0", MAIN), f"{MAIN} does not contain the release"
+        assert is_ancestor("v0.2.0", DEV), f"the release was not merged back into {DEV}"
+        assert not is_ancestor(unfinished, MAIN), f"unreleased {DEV} work reached {MAIN}"
     finally:
         REPO, VERSION_FILES = saved_repo, saved_files
         shutil.rmtree(tmp, ignore_errors=True)
