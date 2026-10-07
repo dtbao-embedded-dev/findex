@@ -3,6 +3,7 @@
 pub mod about;
 pub mod db;
 pub mod drives;
+pub mod elevation;
 pub mod index;
 pub mod reveal;
 pub mod search;

@@ -9,6 +9,9 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_HANDLE_EOF, ERROR_JOURNAL_DELETE_IN_PROGRESS, ERROR_JOURNAL_ENTRY_DELETED,
     ERROR_JOURNAL_NOT_ACTIVE, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE,
 };
+use windows_sys::Win32::Security::{
+    GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+};
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
     FILE_ATTRIBUTE_DIRECTORY, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
@@ -18,8 +21,11 @@ use windows_sys::Win32::System::Ioctl::{
     FSCTL_ENUM_USN_DATA, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, MFT_ENUM_DATA_V1,
     READ_USN_JOURNAL_DATA_V1, USN_JOURNAL_DATA_V0,
 };
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOVABLE};
 use windows_sys::Win32::System::IO::DeviceIoControl;
+use windows_sys::Win32::UI::Shell::ShellExecuteW;
+use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 /// A mounted local volume, as Windows reports it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -349,6 +355,54 @@ fn as_bytes_mut(words: &mut [u64]) -> &mut [u8] {
     // SAFETY: u8 has no alignment or validity requirements, and the byte length is
     // exactly the size of the borrowed u64 slice, which stays borrowed meanwhile.
     unsafe { std::slice::from_raw_parts_mut(words.as_mut_ptr().cast::<u8>(), words.len() * 8) }
+}
+
+/// True when this process runs with administrator rights (UAC elevated).
+pub fn is_elevated() -> bool {
+    let mut token: HANDLE = std::ptr::null_mut();
+    // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing, and
+    // `token` is a live out-pointer.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return false;
+    }
+    let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
+    let mut written = 0_u32;
+    // SAFETY: the buffer is one TOKEN_ELEVATION and its exact size is passed with it;
+    // `token` came from a successful OpenProcessToken and is closed once, below.
+    let ok = unsafe {
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            (&mut elevation as *mut TOKEN_ELEVATION).cast::<c_void>(),
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut written,
+        );
+        CloseHandle(token);
+        ok
+    };
+    ok != 0 && elevation.TokenIsElevated != 0
+}
+
+/// Starts `exe` with `args` again through the UAC prompt. False when the user said
+/// No or the start failed; the caller then carries on without the rights.
+pub fn run_elevated(exe: &std::path::Path, args: &str) -> bool {
+    let verb = wide("runas");
+    let file = wide(&exe.to_string_lossy());
+    let params = wide(args);
+    // SAFETY: every string is NUL-terminated and outlives the call; the window and
+    // working-directory arguments may be null.
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            file.as_ptr(),
+            params.as_ptr(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    // ShellExecute reports success as a value above 32.
+    result as isize > 32
 }
 
 fn wide(text: &str) -> Vec<u16> {

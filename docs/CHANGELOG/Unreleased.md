@@ -68,9 +68,16 @@
   lowercase, so installed copies and update URLs are unaffected.
 - A real app icon (folder with a magnifier) replaces the placeholder; its source is
   `src-tauri/icons/icon.svg` and the README now shows it.
-- The installed app now asks for administrator rights (UAC) when it starts. Reading
-  an NTFS file table requires them. Development builds still run unelevated and use
-  the folder scan.
+- The app now asks for administrator rights (UAC) whenever it opens, because reading
+  an NTFS file table requires them.
+  - **Installed app:** asks through its manifest.
+  - **Build started any other way:** relaunches itself through UAC.
+  - **If you say No:** it still opens and indexes by folder scan.
+  - **`pnpm tauri dev`:** never relaunched, since that would stop the dev server. Run
+    the terminal as administrator instead.
+- The status bar explains a folder scan in plain words. When rights are missing it
+  says "open Findex as administrator for instant search and live updates" instead of
+  "Access is denied (os error 5)".
 
 ### Fixed
 

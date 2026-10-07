@@ -15,6 +15,11 @@ use model::index::service::IndexService;
 
 /// Builds and runs the application. `main.rs` turns an error into an exit code.
 pub fn run() -> tauri::Result<()> {
+    // Before anything else, so the single-instance plugin sees only the copy that
+    // keeps running.
+    if model::elevation::relaunch_if_needed() {
+        return Ok(());
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             tray::show_main(app);

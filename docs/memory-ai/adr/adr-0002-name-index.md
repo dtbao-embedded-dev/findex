@@ -4,7 +4,7 @@ category: architecture
 purpose: How findex indexes file and folder names — MFT read as administrator, folder walk fallback, in-memory arena search, snapshots and USN live updates.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/index/mft.rs, src-tauri/src/model/index/snapshot.rs, src-tauri/src/model/index/watch.rs, src-tauri/src/model/index/walk.rs, src-tauri/src/model/index/service.rs, src-tauri/src/model/index/store.rs, src-tauri/src/model/search.rs, src-tauri/src/model/win32.rs, src-tauri/build.rs, src-tauri/findex.manifest
+source: src-tauri/src/model/index/mft.rs, src-tauri/src/model/index/snapshot.rs, src-tauri/src/model/index/watch.rs, src-tauri/src/model/index/walk.rs, src-tauri/src/model/index/service.rs, src-tauri/src/model/index/store.rs, src-tauri/src/model/search.rs, src-tauri/src/model/win32.rs, src-tauri/src/model/elevation.rs, src-tauri/build.rs, src-tauri/findex.manifest
 confidence: confirmed
 verified_at: 2026-10-07
 keywords: mft, usn, FSCTL_ENUM_USN_DATA, requireAdministrator, walker, rayon, memmem, omni-search, name search
@@ -30,6 +30,7 @@ The user asked for fast name search modelled on github.com/Eul45/omni-search. Re
 | Choice | Reason |
 |--------|--------|
 | Release exe embeds `requireAdministrator` (`build.rs`, release profile only) | User chose it over a hybrid; MFT read needs it. Debug keeps `asInvoker` so `tauri dev`/`cargo test` run unelevated. |
+| Any unelevated start outside `tauri dev` relaunches via `ShellExecuteW("runas")` (`model/elevation.rs`, first thing in `run()`); a No keeps running unelevated | User asked for UAC on every open (2026-10-07). `tauri dev` is detected by `CARGO` / `TAURI_ENV_DEBUG` and skipped: a relaunch would end the dev session. `--elevated` stops loops. |
 | NTFS → MFT; failure or non-NTFS → parallel `read_dir` walk | Walk never enters junctions/symlinks, so link loops cannot hang it. |
 | One lowercase arena per volume, `\0`-separated, nodes hold parent FRN | One memmem pass per 1 MiB chunk (rayon); paths built only for the top-K. Moves/renames touch one node. |
 | Ranking tiers: exact/stem 3, prefix 2, word start 1, substring 0; then shorter, folders, alphabetical | Deterministic, tested ordering. |
