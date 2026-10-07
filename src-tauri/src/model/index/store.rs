@@ -232,9 +232,30 @@ impl VolumeIndex {
 
     fn push_strings(&mut self, name: &str) -> AppResult<(Span, Span)> {
         let name_span = push(&mut self.names, name)?;
-        let lower_span = push(&mut self.lower, &name.to_lowercase())?;
+        let lower_span = if name.is_ascii() {
+            // Most names are ASCII: fold in place, with no temporary String.
+            let span = push(&mut self.lower, name)?;
+            let start = span.off as usize;
+            // ASCII lowercasing maps ASCII bytes to ASCII bytes, so the arena stays
+            // valid UTF-8; only the bytes just pushed are touched.
+            self.lower.as_mut_str()[start..].make_ascii_lowercase();
+            span
+        } else {
+            push(&mut self.lower, &name.to_lowercase())?
+        };
         self.lower.push(SEPARATOR as char);
         Ok((name_span, lower_span))
+    }
+
+    /// Reserves room for `entries` more entries of about `name_bytes` bytes of names
+    /// in all, so a bulk load does not grow every container step by step.
+    pub fn reserve(&mut self, entries: usize, name_bytes: usize) {
+        self.nodes.reserve(entries);
+        self.frns.reserve(entries);
+        self.starts.reserve(entries);
+        self.by_frn.reserve(entries);
+        self.names.reserve(name_bytes);
+        self.lower.reserve(name_bytes + entries);
     }
 }
 

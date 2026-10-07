@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::model::index::store::VolumeIndex;
 
 /// The made-up reference number of the walked root; entries get 1, 2, 3, ...
@@ -32,10 +32,19 @@ pub fn build(
 ) -> AppResult<VolumeIndex> {
     // A missing or unreadable root is an error; unreadable folders below it are not.
     std::fs::read_dir(root)?;
+    // Its own threads: a walk keeps every worker busy for its whole length, and on
+    // rayon's shared pool every search would queue behind it.
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .thread_name(|i| format!("findex-walk-{i}"))
+        .build()
+        .map_err(|err| AppError::Invalid(format!("could not start the folder scan: {err}")))?;
     let next = AtomicU64::new(WALK_ROOT + 1);
     let seen = AtomicUsize::new(0);
-    let entries = walk_dir(root.to_path_buf(), WALK_ROOT, &next, &seen, progress);
+    let entries = pool.install(|| walk_dir(root.to_path_buf(), WALK_ROOT, &next, &seen, progress));
     let mut index = VolumeIndex::new(display_root, WALK_ROOT);
+    index.reserve(entries.len(), entries.iter().map(|e| e.name.len()).sum());
     for entry in entries {
         index.upsert(entry.id, entry.parent, &entry.name, entry.is_dir)?;
     }
