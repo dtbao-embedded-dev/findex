@@ -18,7 +18,7 @@ type Props = {
   onSelect: (index: number) => void;
   onMenu: (at: { x: number; y: number }, index: number) => void;
   onTag: (tag: string) => void;
-  /** The colour of each colour tag, by name. */
+  /** The colour of each preset tag, by name. */
   tagColors: Record<string, string>;
   /** Changes when the selected row must be scrolled back into view. */
   reveal: number;

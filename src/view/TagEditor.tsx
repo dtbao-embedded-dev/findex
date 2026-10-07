@@ -8,7 +8,7 @@ import {
   removeTagFrom,
   suggestTags,
   tagColors,
-  tagLabel,
+  tagName,
 } from "../presenter/tagPresenter";
 import { TagMark } from "./TagMark";
 import { useDismiss } from "./useDismiss";
@@ -26,7 +26,7 @@ type Props = {
 };
 
 /**
- * A small panel to tag one folder: the colour tags as a row of dots to toggle, its
+ * A small panel to tag one folder: the preset tags (Working, Doc, …) as pills to toggle, its
  * custom tags as chips to remove, a field to add one (a new name becomes a custom
  * tag), and the custom tags already made as one-press suggestions. Each change is
  * saved at once.
@@ -76,7 +76,7 @@ export function TagEditor({ at, folder, tags, catalog, onChange, onClose }: Prop
       <p className="tag-editor-title">
         Tags for <strong>{folder.name}</strong>
       </p>
-      <div className="tag-colors" role="group" aria-label="Colour tags">
+      <div className="tag-colors" role="group" aria-label="Preset tags">
         {presets.map((t) => {
           const on = tags.includes(t.tag);
           return (
@@ -85,13 +85,12 @@ export function TagEditor({ at, folder, tags, catalog, onChange, onClose }: Prop
               type="button"
               className="tag-color"
               aria-pressed={on}
-              aria-label={tagLabel(t.tag, colors)}
-              title={tagLabel(t.tag, colors)}
               onClick={() =>
                 void (on ? removeTagFrom(folder.path, t.tag) : addTagTo(folder.path, t.tag)).then(apply)
               }
             >
-              <span className="tag-dot" data-color={t.color ?? undefined} />
+              <span className="tag-dot" data-color={t.color ?? undefined} aria-hidden="true" />
+              {tagName(t.tag, colors)}
             </button>
           );
         })}

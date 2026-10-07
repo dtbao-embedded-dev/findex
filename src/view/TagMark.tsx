@@ -1,5 +1,5 @@
 /**
- * How a tag is marked wherever it appears: a colour tag as a dot of its colour, as
+ * How a tag is marked wherever it appears: a preset tag as a dot of its colour, as
  * Finder draws it, and a custom tag as a #.
  */
 export function TagMark({ tag, colors }: { tag: string; colors: Record<string, string> }) {

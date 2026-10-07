@@ -165,7 +165,7 @@ pub fn remove_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<Str
     tags::remove(&db, path, tag)
 }
 
-/// Every tag that can be picked: the colour presets, then custom tags.
+/// Every tag that can be picked: the presets, then custom tags.
 #[tauri::command]
 pub fn tag_catalog(db: State<'_, Db>) -> AppResult<Vec<TagInfo>> {
     tags::catalog(&db)

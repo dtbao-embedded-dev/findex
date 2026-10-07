@@ -55,7 +55,7 @@ export async function loadTags(
 
 /**
  * Custom tags the folder lacks, starting with what is typed, in catalog order. The
- * colour tags are offered as their own row, so they are not suggested here.
+ * preset tags are offered as their own row, so they are not suggested here.
  */
 export function suggestTags(all: TagInfo[], current: string[], typed: string): string[] {
   const start = typed.trim().replace(/^#/, "").toLowerCase();
@@ -66,17 +66,17 @@ export function suggestTags(all: TagInfo[], current: string[], typed: string): s
     .slice(0, 8);
 }
 
-/** The colour of each colour tag, by name, for drawing a tag found by name alone. */
+/** The colour of each preset tag, by name, for drawing a tag found by name alone. */
 export function tagColors(all: TagInfo[]): Record<string, string> {
   return Object.fromEntries(all.flatMap((t) => (t.color === null ? [] : [[t.tag, t.color]])));
 }
 
-/** A tag's name beside its mark: a colour tag by its colour ("Red"), a custom one as is. */
+/** A tag's name beside its mark: a preset capitalised ("Working"), a custom one as is. */
 export function tagName(tag: string, colors: Record<string, string>): string {
   return tag in colors ? tag.charAt(0).toUpperCase() + tag.slice(1) : tag;
 }
 
-/** How a tag is written on its own: a colour tag as "Red", a custom one as "#fw". */
+/** How a tag is written on its own: a preset as "Working", a custom one as "#fw". */
 export function tagLabel(tag: string, colors: Record<string, string>): string {
   return tag in colors ? tagName(tag, colors) : `#${tag}`;
 }

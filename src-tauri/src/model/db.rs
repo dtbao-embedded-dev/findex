@@ -32,6 +32,25 @@ const MIGRATIONS: &[&str] = &[
          ('green', 'green', 1, 4), ('blue', 'blue', 1, 5), ('purple', 'purple', 1, 6), \
          ('gray', 'gray', 1, 7); \
      INSERT OR IGNORE INTO tag (name) SELECT DISTINCT tag FROM folder_tag;",
+    // The presets become named tags, each keeping a colour: a folder on a colour tag
+    // moves to the named tag of that colour. A custom tag already carrying one of the
+    // new names becomes that preset, and a folder holding both is left with one tag.
+    "WITH renamed (old, new) AS (VALUES \
+         ('blue', 'working'), ('green', 'doc'), ('red', 'important'), \
+         ('orange', 'todo'), ('yellow', 'review'), ('purple', 'personal'), \
+         ('gray', 'archive')) \
+     INSERT OR IGNORE INTO folder_tag (path, tag) \
+         SELECT f.path, r.new FROM folder_tag f JOIN renamed r ON f.tag = r.old; \
+     DELETE FROM folder_tag \
+         WHERE tag IN ('blue', 'green', 'red', 'orange', 'yellow', 'purple', 'gray'); \
+     DELETE FROM tag \
+         WHERE name IN ('blue', 'green', 'red', 'orange', 'yellow', 'purple', 'gray'); \
+     INSERT INTO tag (name, color, preset, ord) VALUES \
+         ('working', 'blue', 1, 1), ('doc', 'green', 1, 2), ('important', 'red', 1, 3), \
+         ('todo', 'orange', 1, 4), ('review', 'yellow', 1, 5), \
+         ('personal', 'purple', 1, 6), ('archive', 'gray', 1, 7) \
+     ON CONFLICT (name) DO UPDATE SET \
+         color = excluded.color, preset = 1, ord = excluded.ord;",
 ];
 
 /// The connection every command shares through `tauri::State`.
@@ -159,21 +178,91 @@ mod tests {
         )
         .unwrap();
         migrate(&mut conn).unwrap();
-        let rows: Vec<(String, Option<String>, bool)> = conn
-            .prepare("SELECT name, color, preset FROM tag ORDER BY ord, name")
+        let rows = catalog_rows(&conn);
+        let names: Vec<&str> = rows.iter().map(|(name, _, _)| name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "working",
+                "doc",
+                "important",
+                "todo",
+                "review",
+                "personal",
+                "archive",
+                "work"
+            ]
+        );
+        // A tag that was a colour name follows its preset; the others stay custom.
+        assert_eq!(tags_on(&conn, "C:\\a"), ["important", "work"]);
+        assert_eq!(rows[7], ("work".into(), None, false));
+    }
+
+    fn catalog_rows(conn: &Connection) -> Vec<(String, Option<String>, bool)> {
+        conn.prepare("SELECT name, color, preset FROM tag ORDER BY ord, name")
             .unwrap()
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .unwrap()
             .collect::<Result<_, _>>()
-            .unwrap();
+            .unwrap()
+    }
+
+    fn tags_on(conn: &Connection, path: &str) -> Vec<String> {
+        conn.prepare("SELECT tag FROM folder_tag WHERE path = ?1 ORDER BY tag")
+            .unwrap()
+            .query_map([path], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn a_version_three_database_moves_colour_tags_to_named_presets() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..3] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 3).unwrap();
+        // A custom `doc` and `working` already exist; one folder carries both
+        // `blue` and `working`, which must merge into one tag.
+        conn.execute_batch(
+            "INSERT INTO tag (name) VALUES ('doc'), ('working'), ('fw'); \
+             INSERT INTO folder_tag VALUES ('C:\\a', 'red'), ('C:\\a', 'fw'), \
+                 ('C:\\b', 'doc'), ('C:\\c', 'blue'), ('C:\\c', 'working'), \
+                 ('C:\\d', 'gray');",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+
+        let rows = catalog_rows(&conn);
         let names: Vec<&str> = rows.iter().map(|(name, _, _)| name.as_str()).collect();
         assert_eq!(
             names,
-            ["red", "orange", "yellow", "green", "blue", "purple", "gray", "work"]
+            [
+                "working",
+                "doc",
+                "important",
+                "todo",
+                "review",
+                "personal",
+                "archive",
+                "fw"
+            ]
         );
-        // A tag that was already a colour name stays the preset; the others are custom.
-        assert_eq!(rows[0], ("red".into(), Some("red".into()), true));
-        assert_eq!(rows[7], ("work".into(), None, false));
+        assert_eq!(rows[0], ("working".into(), Some("blue".into()), true));
+        assert_eq!(rows[1], ("doc".into(), Some("green".into()), true));
+        assert_eq!(rows[2], ("important".into(), Some("red".into()), true));
+        assert_eq!(rows[6], ("archive".into(), Some("gray".into()), true));
+        assert_eq!(rows[7], ("fw".into(), None, false));
+
+        assert_eq!(tags_on(&conn, "C:\\a"), ["fw", "important"]);
+        assert_eq!(tags_on(&conn, "C:\\b"), ["doc"]);
+        assert_eq!(tags_on(&conn, "C:\\c"), ["working"]);
+        assert_eq!(tags_on(&conn, "C:\\d"), ["archive"]);
+
+        // Running it again changes nothing.
+        migrate(&mut conn).unwrap();
+        assert_eq!(catalog_rows(&conn), rows);
     }
 
     #[test]

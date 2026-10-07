@@ -94,16 +94,20 @@
     lower case. Tags are saved in the app's database, keyed by the folder's path, so a
     folder that is renamed or moved loses its tags.
 - Tags come in two kinds, as in Finder:
-  - **Colour tags:** Red, Orange, Yellow, Green, Blue, Purple and Gray are always
-    there, drawn as coloured dots in the sidebar, the filters, the tag editor and on
-    results, and cannot be deleted. The tag editor offers them as a row of dots to
-    toggle.
+  - **Preset tags:** Working, Doc, Important, Todo, Review, Personal and Archive are
+    always there, each drawn with its own coloured dot beside its name in the sidebar,
+    the filters, the tag editor and on results, and cannot be deleted. They are named
+    for what a folder is, not for a colour, so a tag says why it was set. The tag editor
+    offers them as a row of pills to toggle.
   - **Your own tags:** made in Settings → Tags, or by typing a new name in the tag
     editor. Settings lists them with their folder counts; deleting one asks first and
     takes it off every folder. A tag that already exists is refused rather than
     merged.
-  - **Upgrading:** tags already on folders become your own tags; a folder tagged
-    `red` before keeps it, now as the Red colour tag.
+  - **Upgrading:** tags already on folders become your own tags. A folder on one of
+    the earlier colour tags moves to the preset of the same colour (Blue → Working,
+    Green → Doc, Red → Important, Orange → Todo, Yellow → Review, Purple → Personal,
+    Gray → Archive); one of your own tags already named like a preset becomes that
+    preset, keeping its folders.
 - A filter bar under the search field narrows the results. Every change searches
   again at once.
   - **Date:** when a result last changed: Today, Yesterday, Last 7 days, Last 30
