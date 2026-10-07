@@ -1,4 +1,8 @@
-# findex
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" alt="Findex icon" width="128" height="128">
+</p>
+
+# Findex
 
 ![Version](https://img.shields.io/badge/version-v0.1.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)

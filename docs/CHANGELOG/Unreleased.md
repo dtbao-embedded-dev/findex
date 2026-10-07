@@ -8,6 +8,12 @@
 
 ### Changed
 
+- The app is now named **Findex** in its window, title bar, tray tooltip, installer and
+  release titles. The package, crate, bundle id (`com.dtbao.findex`) and repository stay
+  lowercase, so installed copies and update URLs are unaffected.
+- A real app icon (folder with a magnifier) replaces the placeholder; its source is
+  `src-tauri/icons/icon.svg` and the README now shows it.
+
 ### Fixed
 
 ### Removed

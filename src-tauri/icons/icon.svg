@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Source of every generated icon: regenerate with `pnpm tauri icon src-tauri/icons/icon.svg`. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
+  <!-- Folder -->
+  <path d="M184 300 a40 40 0 0 1 40 -40 h196 l64 72 h316 a40 40 0 0 1 40 40 v388 a40 40 0 0 1 -40 40 h-576 a40 40 0 0 1 -40 -40 z"
+        fill="url(#folder)"/>
+  <path d="M184 392 h656 v4 h-656 z" fill="#93c5fd"/>
+  <!-- Magnifier -->
+  <circle cx="560" cy="580" r="128" fill="#2563eb" fill-opacity="0.12" stroke="#1e3a8a" stroke-width="44"/>
+  <path d="M652 672 L790 810" stroke="#1e3a8a" stroke-width="64" stroke-linecap="round"/>
+</svg>
