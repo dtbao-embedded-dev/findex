@@ -34,6 +34,7 @@ pub fn run() -> tauri::Result<()> {
             index.start_saved(&db, commands::status_emitter(app.handle()))?;
             app.manage(db);
             app.manage(index);
+            commands::watch_inbox(app.handle(), data.join("inbox"));
             splash::arm_fallback(app.handle());
             Ok(())
         })

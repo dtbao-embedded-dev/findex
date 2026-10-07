@@ -4,7 +4,7 @@ import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
 import { loadActive } from "../presenter/drivePresenter";
 import type { TagInfo } from "../model/tags";
 import { revealMain } from "../presenter/splashPresenter";
-import { loadTags } from "../presenter/tagPresenter";
+import { loadTags, watchTags } from "../presenter/tagPresenter";
 import { rescan, rescanLabel, summarize, watchStatus } from "../presenter/statusPresenter";
 import {
   createUpdater,
@@ -46,8 +46,11 @@ export function App() {
     refreshTags();
     void revealMain(loadActive().then(setActive));
     const stop = watchStatus(setStatus);
+    // A folder tagged from Explorer's menu shows its tag here without a restart.
+    const stopTags = watchTags(setTags);
     return () => {
       void stop.then((unlisten) => unlisten());
+      void stopTags.then((unlisten) => unlisten());
     };
   }, []);
 

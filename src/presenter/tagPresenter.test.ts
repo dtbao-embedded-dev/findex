@@ -13,6 +13,7 @@ import {
   tagColors,
   tagLabel,
   tagName,
+  watchTags,
 } from "./tagPresenter";
 
 describe("addTagTo", () => {
@@ -132,5 +133,25 @@ describe("deleteTagNamed", () => {
       catalog: null,
       error: "a preset tag",
     });
+  });
+});
+
+describe("watchTags", () => {
+  it("reads the catalog again each time folders were tagged from Explorer", async () => {
+    let fire: () => void = () => {};
+    const seen: TagInfo[][] = [];
+    const catalog: TagInfo[] = [{ tag: "working", color: "blue", preset: true, folders: 3 }];
+    const stop = await watchTags(
+      (next) => seen.push(next),
+      async (onChange) => {
+        fire = onChange;
+        return () => {};
+      },
+      async () => catalog,
+    );
+    fire();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(seen).toEqual([catalog]);
+    expect(typeof stop).toBe("function");
   });
 });

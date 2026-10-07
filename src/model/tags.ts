@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 /** One tag that can be picked, as `TagInfo` in `model/tags.rs` returns it. */
 export type TagInfo = {
@@ -34,4 +35,12 @@ export function createTag(tag: string): Promise<TagInfo[]> {
 /** Deletes a custom tag from the catalog and every folder. Returns the catalog. */
 export function deleteTag(tag: string): Promise<TagInfo[]> {
   return invoke<TagInfo[]>("delete_tag", { tag });
+}
+
+/**
+ * Calls `onChange` whenever folders were tagged outside the window, from Explorer's
+ * "Tag with Findex" menu. Resolves to the unsubscribe call.
+ */
+export function onTagsChanged(onChange: () => void): Promise<UnlistenFn> {
+  return listen("tags-changed", () => onChange());
 }

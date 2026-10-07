@@ -2,7 +2,9 @@
 //! A rule written here instead of in `model/` exists twice the day a second
 //! caller needs it.
 
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
@@ -11,6 +13,7 @@ use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
 use crate::model::find::{self, Answer};
+use crate::model::inbox;
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
@@ -28,6 +31,25 @@ pub fn status_emitter(app: &AppHandle) -> Emit {
             eprintln!("could not send the index status: {err}");
         }
     })
+}
+
+/// Applies the tag requests Explorer's menu leaves in `dir`, now and then every
+/// second, on a thread of its own; the frontend hears `tags-changed` when a folder
+/// was tagged, so it can read the tags again.
+pub fn watch_inbox(app: &AppHandle, dir: PathBuf) {
+    let app = app.clone();
+    std::thread::spawn(move || loop {
+        match inbox::drain(&app.state::<Db>(), &dir) {
+            Ok(0) => {}
+            Ok(_) => {
+                if let Err(err) = app.emit("tags-changed", ()) {
+                    eprintln!("could not report new tags: {err}");
+                }
+            }
+            Err(err) => eprintln!("could not read the tag inbox: {err}"),
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    });
 }
 
 #[tauri::command]
