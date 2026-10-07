@@ -175,7 +175,18 @@ export function ResultList({
                     </button>
                   ))}
                 </span>
-                <span className="result-path">{folderOf(hit.path)}</span>
+                {hit.line === undefined ? (
+                  <span className="result-path">{folderOf(hit.path)}</span>
+                ) : (
+                  <span className="result-path is-snippet" title={folderOf(hit.path)}>
+                    <span className="result-line-no" aria-label={`Line ${hit.line}`}>
+                      {hit.line}
+                    </span>
+                    {highlight(hit.snippet ?? "", query).map((part, i) =>
+                      part.match ? <mark key={i}>{part.text}</mark> : part.text,
+                    )}
+                  </span>
+                )}
               </span>
               <HitMeta meta={describeHit(details[hit.path])} />
             </li>

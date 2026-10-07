@@ -15,9 +15,11 @@ import {
   PAGE,
   resultsView,
 } from "../presenter/searchPresenter";
+import { describeScan, latestScan } from "../presenter/contentPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
 import {
+  clearFilters,
   initialFilters,
   isFiltered,
   narrowsDate,
@@ -66,6 +68,7 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
   const [state, setState] = useState(initialSearch);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
+  const scan = useMemo(() => latestScan(), []);
   // Set while the next page is on its way, so a scroll asks for it once.
   const loadingMore = useRef(false);
   const loadDetails = useMemo(() => latestDetails(), []);
@@ -149,6 +152,13 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
   // Dates such as "Today" are measured when each search is asked, not when picked.
   const run = (query: string, by: FilterState = filters) => {
     setState((s) => ({ ...s, query }));
+    // Contents are read from the disk, so their results stream in as they are found.
+    if (by.mode === "contents") {
+      search.stop();
+      void scan.start(query, toFilters(by), (update) => setState((s) => ({ ...s, ...update })));
+      return;
+    }
+    scan.stop();
     void search.search(query, toFilters(by)).then((update) => {
       if (update) {
         setState((s) => ({ ...s, ...update }));
@@ -164,7 +174,9 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
   // Answers the query on screen again, keeping the selected file and as many rows as
   // were already loaded, so a background refresh never shortens the list.
   const refresh = () => {
-    if (!canSearch(state.query, filters)) {
+    // A content search reads the disk again from the start: it is never re-run on
+    // its own, or live updates would restart it every second while files change.
+    if (filters.mode === "contents" || !canSearch(state.query, filters)) {
       return;
     }
     const count = Math.max(PAGE, state.hits.length);
@@ -255,7 +267,7 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
     } else if (event.key === "Escape") {
       // A first Esc clears the name; a second one clears the filters as well.
       if (state.query === "" && isFiltered(filters)) {
-        changeFilters(initialFilters);
+        changeFilters(clearFilters(filters));
       } else {
         run("");
       }
@@ -295,7 +307,7 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
               type="text"
               spellCheck={false}
               autoComplete="off"
-              placeholder={searchPlaceholder(active)}
+              placeholder={searchPlaceholder(active, filters.mode)}
               aria-label="Search files and folders"
               aria-controls="results"
               value={state.query}
@@ -319,7 +331,9 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
             query={state.query}
             details={details}
             meta={
-              state.tookMs === null
+              state.scan !== null
+                ? describeScan(state.hits.length, state.scan, state.tookMs)
+                : state.tookMs === null
                 ? null
                 : describeResults(state.hits.length, state.tookMs, {
                     total: state.total,
@@ -356,7 +370,9 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
                   Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
                 </p>
                 <p className="empty-hint">
-                  {isFiltered(filters) ? (
+                  {filters.mode === "contents" ? (
+                    <>Type words to find in names and inside text files.</>
+                  ) : isFiltered(filters) ? (
                     <>Type part of a name to search with these filters.</>
                   ) : (
                     <>

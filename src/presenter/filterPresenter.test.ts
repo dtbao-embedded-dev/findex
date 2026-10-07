@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clearFilters,
   dateRange,
   describeDate,
   describeExts,
@@ -85,7 +86,7 @@ describe("describeDate", () => {
 describe("toFilters", () => {
   it("turns the filter bar into what Rust narrows by", () => {
     const filters = toFilters(
-      { date: { kind: "today" }, kind: "folder", tags: ["work"], exts: ["c"] },
+      { date: { kind: "today" }, kind: "folder", tags: ["work"], exts: ["c"], mode: "contents" },
       NOW,
     );
     expect(filters).toEqual({
@@ -111,6 +112,8 @@ describe("isFiltered", () => {
     expect(isFiltered({ ...initialFilters, kind: "file" })).toBe(true);
     expect(isFiltered({ ...initialFilters, tags: ["x"] })).toBe(true);
     expect(isFiltered({ ...initialFilters, exts: ["c"] })).toBe(true);
+    // Where the words are looked for is not a filter.
+    expect(isFiltered({ ...initialFilters, mode: "contents" })).toBe(false);
     expect(isFiltered({ ...initialFilters, date: { kind: "thisYear" } })).toBe(true);
     // A custom date still being typed narrows nothing yet.
     expect(isFiltered({ ...initialFilters, date: { kind: "day", date: "" } })).toBe(false);
@@ -152,5 +155,18 @@ describe("the type filter", () => {
     expect(describeExts(code.exts)).toBe("Code");
     expect(describeExts(["c"])).toBe(".c");
     expect(describeExts(["c", "h", "s", "ld", "mk"])).toBe(".c, .h, .s +2");
+  });
+});
+
+describe("clearFilters", () => {
+  it("clears every filter but keeps searching where it did", () => {
+    const busy = {
+      date: { kind: "today" as const },
+      kind: "file" as const,
+      tags: ["work"],
+      exts: ["c"],
+      mode: "contents" as const,
+    };
+    expect(clearFilters(busy)).toEqual({ ...initialFilters, mode: "contents" });
   });
 });

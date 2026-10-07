@@ -18,6 +18,9 @@ export type DateChoice =
   | { kind: "year"; year: string }
   | { kind: "range"; from: string; to: string };
 
+/** Where the typed words are looked for: in names, or in names and file contents. */
+export type SearchMode = "name" | "contents";
+
 /** Everything the filter bar holds. */
 export type FilterState = {
   date: DateChoice;
@@ -26,6 +29,8 @@ export type FilterState = {
   tags: string[];
   /** File types, by extension without the dot; a result of any of them is kept. */
   exts: string[];
+  /** Not a filter: where the words are looked for. */
+  mode: SearchMode;
 };
 
 export const initialFilters: FilterState = {
@@ -33,7 +38,13 @@ export const initialFilters: FilterState = {
   kind: "any",
   tags: [],
   exts: [],
+  mode: "name",
 };
+
+/** Every filter cleared; the search keeps looking where it did. */
+export function clearFilters(state: FilterState): FilterState {
+  return { ...initialFilters, mode: state.mode };
+}
 
 /** The presets, in the order the date menu lists them. */
 export const DATE_PRESETS: { choice: DateChoice; label: string }[] = [

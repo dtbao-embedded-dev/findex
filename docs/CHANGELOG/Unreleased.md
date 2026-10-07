@@ -164,10 +164,19 @@
     server (offline, or no release published yet), shows nothing.
   - **Before installing:** the drive index changed by live updates is saved first,
     since the installer closes the app without the usual quit.
-- Search inside files. A content search lists the files whose name matches first,
-  ranked, then every file holding all the typed words, each with the line number and
-  the text of the first matching line. Results arrive while the drive is still being
-  read, with a count of the files read so far; a new search stops the old one.
+- Search inside files. **Name | Contents** at the start of the filter bar picks
+  where the words are looked for, as in Finder. A content search lists the files
+  whose name matches first, ranked, then every file holding all the typed words, each
+  with the line number and the text of the first matching line, the words in bold
+  (the folder shows on hover). Results arrive while the drive is still being read:
+  the line above them says "Searching contents… 37 results · 1,204 of 52,310 files
+  read", then "37 results · 52,310 files read · 4.2 s".
+  - **Typing:** the search starts once typing pauses for a quarter of a second, and
+    a new search stops the old one; its results never come back. Going back to Name
+    stops it too. A content search is not re-run on its own as files change.
+  - **Measured on E: (development build, unelevated):** 49,585 C files read in 37 s
+    the first time and 3.3 s once the disk cache held them; the first of 617 matches
+    showed after a second.
   - **What is read:** files of a text type (code, text, markup, configuration, logs,
     CSV, KiCad design files and the like), or only the types picked in the Type
     filter. Files over 8 MB and files that look binary are skipped. Matching ignores

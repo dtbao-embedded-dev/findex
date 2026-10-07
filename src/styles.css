@@ -1066,6 +1066,26 @@ button:focus-visible {
   color: rgb(255 255 255 / 0.82);
 }
 
+/* A file found by its contents: the line number, then the line with the words in
+   bold, where a name match shows its folder. */
+.result-path.is-snippet mark {
+  color: var(--fg);
+  font-weight: 650;
+  background: none;
+}
+
+.is-selected .result-path.is-snippet mark {
+  color: #fff;
+}
+
+.result-line-no {
+  display: inline-block;
+  min-width: 2ch;
+  margin-right: 0.5em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .empty {
   display: flex;
   flex-direction: column;

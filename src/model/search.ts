@@ -5,6 +5,10 @@ export type Hit = {
   name: string;
   path: string;
   isDir: boolean;
+  /** For a file found by its contents, the line of the first match, from 1. */
+  line?: number;
+  /** The text of that line around the match. */
+  snippet?: string;
 };
 
 export type Kind = "any" | "file" | "folder";

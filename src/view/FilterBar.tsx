@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 import type { Kind } from "../model/search";
 import type { TagInfo } from "../model/tags";
 import {
+  clearFilters,
   CUSTOM_DATES,
   DATE_PRESETS,
   describeDate,
@@ -11,7 +12,6 @@ import {
   EXT_GROUPS,
   formatExts,
   groupOn,
-  initialFilters,
   isFiltered,
   narrowsDate,
   parseExts,
@@ -19,6 +19,7 @@ import {
   toggleTag,
   type DateChoice,
   type FilterState,
+  type SearchMode,
 } from "../presenter/filterPresenter";
 import { tagColors, tagLabel, tagName } from "../presenter/tagPresenter";
 import { TagMark } from "./TagMark";
@@ -31,6 +32,15 @@ type Props = {
   onChange: (filters: FilterState) => void;
 };
 
+const MODES: { mode: SearchMode; label: string; title: string }[] = [
+  { mode: "name", label: "Name", title: "Find the words in file and folder names" },
+  {
+    mode: "contents",
+    label: "Contents",
+    title: "Find the words in names and inside text files; results arrive as files are read",
+  },
+];
+
 const KINDS: { kind: Kind; label: string }[] = [
   { kind: "any", label: "All" },
   { kind: "file", label: "Files" },
@@ -38,9 +48,10 @@ const KINDS: { kind: Kind; label: string }[] = [
 ];
 
 /**
- * The filters under the search field: when a result last changed, whether it is a
- * file or a folder, its file type, and the tags a folder carries. Each change
- * searches again at once; nothing waits for an Apply button.
+ * The bar under the search field: first where the words are looked for (names, or
+ * names and contents, as Finder offers), then the filters: when a result last
+ * changed, whether it is a file or a folder, its file type, and the tags a folder
+ * carries. Each change searches again at once; nothing waits for an Apply button.
  */
 export function FilterBar({ filters, tags, onChange }: Props) {
   const set = (change: Partial<FilterState>) => onChange({ ...filters, ...change });
@@ -48,6 +59,21 @@ export function FilterBar({ filters, tags, onChange }: Props) {
 
   return (
     <div className="filter-bar" role="toolbar" aria-label="Filters">
+      <div className="segmented" role="radiogroup" aria-label="Search in">
+        {MODES.map((m) => (
+          <button
+            key={m.mode}
+            type="button"
+            role="radio"
+            aria-checked={filters.mode === m.mode}
+            title={m.title}
+            onClick={() => set({ mode: m.mode })}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       <Popover
         label={describeDate(filters.date)}
         active={narrowsDate(filters.date)}
@@ -112,7 +138,7 @@ export function FilterBar({ filters, tags, onChange }: Props) {
       </Popover>
 
       {isFiltered(filters) && (
-        <button type="button" className="filter-clear" onClick={() => onChange(initialFilters)}>
+        <button type="button" className="filter-clear" onClick={() => onChange(clearFilters(filters))}>
           Clear filters
         </button>
       )}

@@ -53,6 +53,10 @@ The app window opens; edits under src/ reload it.
 
 - Type part of a name: every word must appear in it. `ext:pdf;docx`, `type:file`,
   `type:folder` and `tag:work` narrow the search from the field itself.
+- **Name | Contents** at the start of the filter bar switches to a content search:
+  name matches first, then every text file holding all the words, with the line
+  that matched. Results stream in while the drive is read; combine it with a type
+  (`.c`) or a tag to read fewer files.
 - The filter bar under the field narrows by when a result last changed (Today, Last
   7 days, This year… or a custom day, month, year or range), by files or folders, by
   file type (a group such as Code, or extensions such as `.c, .h`), and by the tags a

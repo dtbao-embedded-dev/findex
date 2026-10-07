@@ -113,6 +113,7 @@ describe("latestOnly", () => {
       indexBytes: null,
       total: null,
       more: false,
+      scan: null,
     };
     expect(await search("   ", NO_FILTERS)).toEqual(cleared);
     // A kind or a date alone has no name to look for.

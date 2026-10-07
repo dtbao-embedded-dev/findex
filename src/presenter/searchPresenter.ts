@@ -5,6 +5,9 @@ import { formatBytes } from "./drivePresenter";
 /** Rows asked for at a time; the next page is loaded as the list scrolls near the end. */
 export const PAGE = 500;
 
+/** How far a content search got. */
+export type ScanProgress = { filesRead: number; filesTotal: number; done: boolean };
+
 /** What the search screen shows. */
 export type SearchState = {
   query: string;
@@ -21,6 +24,8 @@ export type SearchState = {
   total: number | null;
   /** Another page can be loaded. */
   more: boolean;
+  /** The content search on screen; null for a name search. */
+  scan: ScanProgress | null;
 };
 
 export const initialSearch: SearchState = {
@@ -33,18 +38,19 @@ export const initialSearch: SearchState = {
   indexBytes: null,
   total: null,
   more: false,
+  scan: null,
 };
 
 /** The part of the state one search answers; null when a later search superseded it. */
 export type SearchUpdate = Pick<
   SearchState,
-  "hits" | "selected" | "error" | "tookMs" | "partial" | "indexBytes" | "total" | "more"
+  "hits" | "selected" | "error" | "tookMs" | "partial" | "indexBytes" | "total" | "more" | "scan"
 >;
 
 /** The rows loaded once the next page arrived, and what is known of the rest. */
 export type PageUpdate = Pick<SearchState, "hits" | "total" | "more" | "partial">;
 
-const CLEARED: SearchUpdate = {
+export const CLEARED: SearchUpdate = {
   hits: [],
   selected: 0,
   error: null,
@@ -53,6 +59,7 @@ const CLEARED: SearchUpdate = {
   indexBytes: null,
   total: null,
   more: false,
+  scan: null,
 };
 
 type Ask = (
@@ -105,6 +112,7 @@ export function latestOnly(
 ): {
   search: (query: string, filters: Filters, count?: number) => Promise<SearchUpdate | null>;
   more: (query: string, filters: Filters, loaded: Hit[]) => Promise<PageUpdate | null>;
+  stop: () => void;
 } {
   let latest = 0;
   const search = async (
@@ -137,6 +145,7 @@ export function latestOnly(
         indexBytes: answer.indexBytes,
         total: answer.total,
         more: answer.more,
+        scan: null,
       };
     } catch (err) {
       return mine === latest ? { ...CLEARED, error: String(err) } : null;
@@ -165,7 +174,11 @@ export function latestOnly(
       partial: answer.partial,
     };
   };
-  return { search, more };
+  // A content search took over: answers still on their way are dropped.
+  const stop = () => {
+    latest += 1;
+  };
+  return { search, more, stop };
 }
 
 /**
