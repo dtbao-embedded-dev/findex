@@ -8,7 +8,7 @@ import {
 export type StatusLine = {
   text: string;
   busy: boolean;
-  /** Names that can be searched now: drives still indexing are not counted. */
+  /** Names that can be searched now, including a drive's snapshot while it re-indexes. */
   total: number;
   /** Notes worth a glance, such as a drive read by folder scan instead of its table. */
   notes: string[];
@@ -19,9 +19,7 @@ const count = (n: number) => n.toLocaleString("en-US");
 /** Words the index status for one line at the bottom of the window. */
 export function summarize(status: IndexStatus): StatusLine {
   const drives = status.drives;
-  const total = drives
-    .filter((d) => d.state === "ready")
-    .reduce((sum, d) => sum + d.entries, 0);
+  const total = drives.reduce((sum, d) => sum + d.searchable, 0);
   const notes = drives.flatMap((d) => (d.note ? [`${d.letter}: ${d.note}`] : []));
   if (drives.length === 0) {
     return { text: "No drives chosen", busy: false, total: 0, notes };

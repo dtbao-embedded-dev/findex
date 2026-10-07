@@ -5,7 +5,10 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export type DriveStatus = {
   letter: string;
   state: "indexing" | "ready" | "failed";
+  /** Entries read so far by the running build; the full count once ready. */
   entries: number;
+  /** Entries searchable right now: a loaded snapshot or the last finished build. */
+  searchable: number;
   method: "mft" | "walk";
   note: string | null;
 };

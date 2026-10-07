@@ -39,6 +39,17 @@
     searched, plus why a drive fell back to a folder scan.
   - **Measured:** on 6.3 million names in a development build, a typical query
     answers in about 30 ms, round trip included.
+- Each drive's index is saved to `%APPDATA%\com.dtbao.findex\index\<drive>.fxi` after
+  it is built.
+  - **At the next launch:** the saved index is loaded first, so search works within
+    about a second while the drive is indexed again behind it. A million names load in
+    about 0.2 s.
+  - **Damaged files:** a damaged or outdated file is detected by its checksum and
+    version, then ignored and rebuilt.
+- A search typed before indexing finished now refreshes on its own when more of the
+  drive becomes searchable, instead of staying on "No matches".
+- Searches no longer stall while a drive is being folder-scanned. The scan now runs on
+  its own threads, so it no longer competes with search for the shared pool.
 
 ### Changed
 

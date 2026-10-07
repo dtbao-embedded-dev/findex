@@ -23,9 +23,9 @@ pub fn run() -> tauri::Result<()> {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             tray::init(app)?;
-            let path = app.path().app_data_dir()?.join("findex.sqlite3");
-            let db = model::db::open(&path)?;
-            let index = Arc::new(IndexService::default());
+            let data = app.path().app_data_dir()?;
+            let db = model::db::open(&data.join("findex.sqlite3"))?;
+            let index = Arc::new(IndexService::with_snapshots(data.join("index")));
             index.start_saved(&db, commands::status_emitter(app.handle()))?;
             app.manage(db);
             app.manage(index);

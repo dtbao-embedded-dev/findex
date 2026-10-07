@@ -4,20 +4,23 @@
 //! read it, otherwise by walking folders. A drive's old index stays searchable until
 //! its new one replaces it. Starting again (after the drive choice changes) makes
 //! every unfinished build of the previous start stale: its result is dropped.
+//!
+//! A finished build is saved as a snapshot; the next start loads it first, so the
+//! drive is searchable at once while it is built again behind it.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
 
 use serde::Serialize;
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::model::db::Db;
 use crate::model::drives::{self, Method};
 use crate::model::index::store::VolumeIndex;
-use crate::model::index::{mft, walk};
+use crate::model::index::{mft, snapshot, walk};
 use crate::model::search::{self, Hit};
-use crate::model::win32;
+use crate::model::win32::{self, Journal};
 
 /// How the service reports progress; the app turns it into an `index-status` event.
 pub type Emit = Arc<dyn Fn(&Status) + Send + Sync>;
@@ -35,7 +38,10 @@ pub enum DriveState {
 pub struct DriveStatus {
     pub letter: String,
     pub state: DriveState,
+    /// Entries read so far by the running build; the full count once ready.
     pub entries: usize,
+    /// Entries that can be searched right now: a loaded snapshot or the last build.
+    pub searchable: usize,
     /// How the drive was actually read, which can differ from what it supports.
     pub method: Method,
     pub note: Option<String>,
@@ -55,9 +61,19 @@ pub struct IndexService {
     query: AtomicU64,
     /// Bumped by every start; a build finishing under an older value is discarded.
     run: AtomicU64,
+    /// Where snapshots are kept; `None` keeps everything in memory only.
+    snapshots: Option<PathBuf>,
 }
 
 impl IndexService {
+    /// A service that saves and reloads snapshots in `dir`.
+    pub fn with_snapshots(dir: PathBuf) -> Self {
+        Self {
+            snapshots: Some(dir),
+            ..Self::default()
+        }
+    }
+
     /// Indexes the drives saved in setup; does nothing before setup has been done.
     pub fn start_saved(self: &Arc<Self>, db: &Db, emit: Emit) -> AppResult<()> {
         if let Some(letters) = drives::load_selection(db)? {
@@ -70,8 +86,11 @@ impl IndexService {
     pub fn start(self: &Arc<Self>, letters: &[String], emit: Emit) {
         let run = self.run.fetch_add(1, Ordering::SeqCst) + 1;
         let chosen: Vec<char> = letters.iter().filter_map(|l| l.chars().next()).collect();
-        self.write_volumes()
-            .retain(|v| chosen.contains(&root_letter(v)));
+        let kept: Vec<(char, usize)> = {
+            let mut volumes = self.write_volumes();
+            volumes.retain(|v| chosen.contains(&root_letter(v)));
+            volumes.iter().map(|v| (root_letter(v), v.len())).collect()
+        };
         let filesystems = win32::list_volumes();
         let plan: Vec<(char, Method)> = chosen
             .iter()
@@ -91,6 +110,10 @@ impl IndexService {
                     letter: letter.to_string(),
                     state: DriveState::Indexing,
                     entries: 0,
+                    searchable: kept
+                        .iter()
+                        .find(|(l, _)| *l == letter)
+                        .map_or(0, |(_, n)| *n),
                     method,
                     note: None,
                 })
@@ -121,24 +144,32 @@ impl IndexService {
     }
 
     fn index_drive(&self, run: u64, letter: char, method: Method, emit: &Emit) {
+        self.load_snapshot(run, letter, emit);
         let progress = |entries: usize| self.update(run, letter, emit, |d| d.entries = entries);
         let built = match method {
             Method::Mft => match mft::build(letter, &mut |n| progress(n)) {
-                Ok(built) => Ok((built.index, Method::Mft, None)),
+                Ok(built) => Ok((built.index, built.journal, Method::Mft, None)),
                 Err(err) => {
                     let note = format!("Folder scan: the file table could not be read ({err})");
-                    walk_drive(letter, &progress).map(|index| (index, Method::Walk, Some(note)))
+                    walk_drive(letter, &progress)
+                        .map(|index| (index, None, Method::Walk, Some(note)))
                 }
             },
-            Method::Walk => walk_drive(letter, &progress).map(|index| (index, Method::Walk, None)),
+            Method::Walk => {
+                walk_drive(letter, &progress).map(|index| (index, None, Method::Walk, None))
+            }
         };
         match built {
-            Ok((index, used, note)) => {
+            Ok((index, journal, used, note)) => {
                 let entries = index.len();
+                // Saved before it is installed, while no lock is held: saving under the
+                // read lock would queue the next install, and every search behind it.
+                self.save_snapshot(&index, journal);
                 if self.install(run, index) {
                     self.update(run, letter, emit, |d| {
                         d.state = DriveState::Ready;
                         d.entries = entries;
+                        d.searchable = entries;
                         d.method = used;
                         d.note = note;
                     });
@@ -149,6 +180,42 @@ impl IndexService {
                 d.note = Some(err.to_string());
             }),
         }
+    }
+
+    /// Makes the drive's last snapshot searchable while it is built again. A missing
+    /// snapshot is the normal first run; a damaged one is ignored and rebuilt.
+    fn load_snapshot(&self, run: u64, letter: char, emit: &Emit) {
+        let Some(path) = self.snapshot_path(letter) else {
+            return;
+        };
+        match snapshot::load(&path) {
+            Ok(loaded) => {
+                let entries = loaded.index.len();
+                if self.install(run, loaded.index) {
+                    self.update(run, letter, emit, |d| d.searchable = entries);
+                }
+            }
+            Err(AppError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => eprintln!("ignoring the snapshot of {letter}: ({err})"),
+        }
+    }
+
+    /// Saves a drive's index. A failed save only costs the next launch its head
+    /// start, so it is logged rather than reported.
+    fn save_snapshot(&self, index: &VolumeIndex, journal: Option<Journal>) {
+        let letter = root_letter(index);
+        let Some(path) = self.snapshot_path(letter) else {
+            return;
+        };
+        if let Err(err) = snapshot::save(&path, index, journal) {
+            eprintln!("could not save the snapshot of {letter}: ({err})");
+        }
+    }
+
+    fn snapshot_path(&self, letter: char) -> Option<PathBuf> {
+        self.snapshots
+            .as_deref()
+            .map(|dir: &Path| snapshot::path_for(dir, letter))
     }
 
     /// Replaces the drive's index with `index`, unless a newer start superseded `run`.
@@ -252,6 +319,32 @@ mod tests {
         service.start(&[], quiet());
         assert!(service.search("a", 10).unwrap().is_empty());
         assert_eq!(service.status(), Status::default());
+    }
+
+    #[test]
+    fn a_saved_snapshot_is_searchable_in_the_next_service() {
+        let dir = std::env::temp_dir().join(format!("findex-service-{}", std::process::id()));
+        let first = IndexService::with_snapshots(dir.clone());
+        first.save_snapshot(&volume('Q', &["kept.txt"]), None);
+
+        let next = IndexService::with_snapshots(dir.clone());
+        assert!(next.search("kept", 10).unwrap().is_empty());
+        next.load_snapshot(0, 'Q', &quiet());
+        let hits = next.search("kept", 10).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].path, "Q:\\kept.txt");
+    }
+
+    #[test]
+    fn a_damaged_snapshot_is_ignored() {
+        let dir = std::env::temp_dir().join(format!("findex-damaged-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(snapshot::path_for(&dir, 'Q'), b"FXI1 garbage").unwrap();
+        let service = IndexService::with_snapshots(dir.clone());
+        service.load_snapshot(0, 'Q', &quiet());
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(service.search("garbage", 10).unwrap().is_empty());
     }
 
     #[test]
