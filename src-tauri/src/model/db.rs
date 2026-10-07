@@ -25,6 +25,14 @@ pub fn open(path: &Path) -> AppResult<Db> {
     Ok(Db(Mutex::new(conn)))
 }
 
+/// A migrated database that lives only as long as the value, for tests of other modules.
+#[cfg(test)]
+pub fn open_in_memory() -> AppResult<Db> {
+    let mut conn = Connection::open_in_memory()?;
+    migrate(&mut conn)?;
+    Ok(Db(Mutex::new(conn)))
+}
+
 /// Brings the schema to the latest version, each migration in its own transaction.
 pub fn migrate(conn: &mut Connection) -> AppResult<()> {
     let current: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;

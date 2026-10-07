@@ -5,6 +5,7 @@
 use crate::error::AppResult;
 use crate::model::about::{self, About};
 use crate::model::db::Db;
+use crate::model::drives::{self, Drive};
 use crate::model::greeting;
 use crate::splash;
 use tauri::{AppHandle, State};
@@ -41,4 +42,20 @@ pub fn app_about(app: AppHandle) -> AppResult<About> {
 pub fn splash_ready(app: AppHandle) -> AppResult<()> {
     splash::finish(&app);
     Ok(())
+}
+
+#[tauri::command]
+pub fn list_drives() -> AppResult<Vec<Drive>> {
+    Ok(drives::list())
+}
+
+/// The drives chosen in setup; null until setup has been done.
+#[tauri::command]
+pub fn get_scan_drives(db: State<'_, Db>) -> AppResult<Option<Vec<String>>> {
+    drives::load_selection(&db)
+}
+
+#[tauri::command]
+pub fn set_scan_drives(db: State<'_, Db>, letters: Vec<String>) -> AppResult<Vec<String>> {
+    drives::save_selection(&db, &letters)
 }

@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 
 import { initialGreeting, submitName } from "../presenter/greetingPresenter";
+import { needsSetup } from "../presenter/setupPresenter";
 import { revealMain } from "../presenter/splashPresenter";
 import { GreetingView } from "./GreetingView";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
+import { SetupView } from "./SetupView";
 import { TitleBar } from "./TitleBar";
+
+type Screen = "loading" | "setup" | "search";
 
 /**
  * The root component. It holds view state and hands user input to the presenter;
@@ -12,9 +16,15 @@ import { TitleBar } from "./TitleBar";
  */
 export function App() {
   const [greeting, setGreeting] = useState(initialGreeting);
+  const [screen, setScreen] = useState<Screen>("loading");
+  const [firstRun, setFirstRun] = useState(false);
 
   useEffect(() => {
-    void revealMain(Promise.resolve());
+    const route = needsSetup().then((setup) => {
+      setFirstRun(setup);
+      setScreen(setup ? "setup" : "search");
+    });
+    void revealMain(route);
   }, []);
 
   return (
@@ -25,15 +35,34 @@ export function App() {
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
       />
-      <main>
-        <h1>Findex</h1>
-        <GreetingView
-          state={greeting}
-          onSubmit={(name) => {
-            void submitName(name).then(setGreeting);
+      {screen === "setup" && (
+        <SetupView
+          firstRun={firstRun}
+          onDone={() => {
+            setFirstRun(false);
+            setScreen("search");
           }}
+          onCancel={() => setScreen("search")}
         />
-      </main>
+      )}
+      {screen === "search" && (
+        <>
+          <nav className="toolbar">
+            <button type="button" className="button-secondary" onClick={() => setScreen("setup")}>
+              Drives
+            </button>
+          </nav>
+          <main>
+            <h1>Findex</h1>
+            <GreetingView
+              state={greeting}
+              onSubmit={(name) => {
+                void submitName(name).then(setGreeting);
+              }}
+            />
+          </main>
+        </>
+      )}
     </>
   );
 }

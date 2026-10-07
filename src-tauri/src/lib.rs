@@ -41,7 +41,10 @@ pub fn run() -> tauri::Result<()> {
             commands::get_setting,
             commands::set_setting,
             commands::app_about,
-            commands::splash_ready
+            commands::splash_ready,
+            commands::list_drives,
+            commands::get_scan_drives,
+            commands::set_scan_drives
         ])
         .run(tauri::generate_context!())
 }

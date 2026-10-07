@@ -17,6 +17,11 @@
   It stays up for at least 0.9 s so it never just flashes. If the main window fails to
   report ready, it is shown anyway after 10 s. The copyright is read from
   `bundle.copyright` in `tauri.conf.json`, the same value the installer uses.
+- The first launch asks which drives to index. Each local drive is shown with its
+  label, free space and filesystem, and C: is ticked by default. NTFS drives are marked
+  as indexed instantly and kept current; other filesystems get a folder scan. The
+  choice is saved, and the Drives button reopens the screen to change it. Network and
+  optical drives are not offered: a disconnected network drive can hang the list.
 
 ### Changed
 

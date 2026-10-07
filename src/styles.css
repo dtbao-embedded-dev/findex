@@ -151,6 +151,199 @@ button:active {
   background: #c42b1c;
 }
 
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button:disabled:active {
+  transform: none;
+}
+
+button:focus-visible {
+  outline: 0.1875rem solid var(--accent-soft);
+  outline-offset: 0.125rem;
+}
+
+/* A quieter button for secondary actions: tinted, not filled. */
+.button-secondary {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Floating chrome under the title bar: a translucent strip, content scrolls below. */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--material);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* Drive setup: a short title, a list of cards to toggle, one primary action. */
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 38rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 2rem;
+}
+
+.setup-header h1 {
+  margin: 0 0 0.375rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.setup-lede {
+  margin: 0;
+  color: var(--muted);
+}
+
+.drive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drive-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition:
+    transform 100ms ease-out,
+    border-color 200ms var(--ease),
+    box-shadow 200ms var(--ease);
+}
+
+.drive-card:active {
+  transform: scale(0.99);
+}
+
+.drive-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow);
+}
+
+/* The checkbox stays in the accessibility tree and keyboard order, drawn as the card. */
+.drive-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drive-card:has(input:focus-visible) {
+  outline: 0.1875rem solid var(--accent-soft);
+  outline-offset: 0.125rem;
+}
+
+.drive-glyph {
+  width: 2rem;
+  height: 2rem;
+  color: var(--muted);
+}
+
+.is-selected .drive-glyph {
+  color: var(--accent);
+}
+
+.drive-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.drive-title {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.drive-detail {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.drive-meter {
+  height: 0.25rem;
+  margin-top: 0.375rem;
+  overflow: hidden;
+  background: var(--hairline);
+  border-radius: 999px;
+}
+
+.drive-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+  border-radius: inherit;
+}
+
+.is-selected .drive-meter > span {
+  background: var(--accent);
+}
+
+.drive-badge {
+  padding: 0.1875rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background: var(--bg);
+  border-radius: 999px;
+}
+
+.drive-badge[data-method="mft"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* A round check that fills when selected. */
+.drive-check {
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 1.5px solid var(--hairline);
+  border-radius: 50%;
+  transition:
+    background-color 200ms var(--ease),
+    border-color 200ms var(--ease);
+}
+
+.is-selected .drive-check {
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 0.875rem no-repeat;
+  border-color: var(--accent);
+}
+
+.setup-error {
+  min-height: 1.5em;
+  margin: 0;
+}
+
+.setup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 /* The splash window: one calm card, the icon materializing into place. */
 .splash-page {
   overflow: hidden;
