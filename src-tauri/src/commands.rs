@@ -18,6 +18,7 @@ use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
 use crate::model::search::Filters;
+use crate::model::shell_menu;
 use crate::model::tags::{self, TagInfo};
 use crate::splash;
 use tauri::ipc::Channel;
@@ -50,6 +51,44 @@ pub fn watch_inbox(app: &AppHandle, dir: PathBuf) {
         }
         std::thread::sleep(Duration::from_secs(1));
     });
+}
+
+/// Where the Explorer menu's pieces are: the helper beside Findex (the installer and
+/// `pnpm tauri dev` both put it there), Findex itself for the icon, and the inbox.
+fn menu_paths(app: &AppHandle) -> AppResult<(PathBuf, PathBuf, PathBuf)> {
+    let exe = std::env::current_exe()?;
+    let helper = exe.with_file_name("findex-tag.exe");
+    let inbox = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| AppError::Invalid(format!("no app data folder: {err}")))?
+        .join("inbox");
+    Ok((helper, exe, inbox))
+}
+
+/// Puts the Explorer menu in line with the setting and the tags; at start, a moved
+/// or updated install points it at the right helper again.
+pub fn sync_menu(app: &AppHandle) -> AppResult<()> {
+    let (helper, icon, inbox) = menu_paths(app)?;
+    shell_menu::sync(&app.state::<Db>(), &helper, &icon, &inbox)
+}
+
+/// Whether "Tag with Findex" is offered in Explorer's right-click menu.
+#[tauri::command]
+pub fn explorer_menu(db: State<'_, Db>) -> AppResult<bool> {
+    shell_menu::enabled(&db)
+}
+
+#[tauri::command]
+pub fn set_explorer_menu(app: AppHandle, enabled: bool) -> AppResult<()> {
+    let (helper, icon, inbox) = menu_paths(&app)?;
+    shell_menu::set_enabled(&app.state::<Db>(), enabled, &helper, &icon, &inbox)
+}
+
+/// Rewrites the Explorer menu after the tags changed.
+#[tauri::command]
+pub fn sync_explorer_menu(app: AppHandle) -> AppResult<()> {
+    sync_menu(&app)
 }
 
 #[tauri::command]

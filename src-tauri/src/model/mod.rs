@@ -13,5 +13,6 @@ pub mod index;
 pub mod launch;
 pub mod reveal;
 pub mod search;
+pub mod shell_menu;
 pub mod tags;
 pub mod win32;

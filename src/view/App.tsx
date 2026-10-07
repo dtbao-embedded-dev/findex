@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
+import { menuTagsKey, syncMenu } from "../presenter/explorerPresenter";
 import { loadActive } from "../presenter/drivePresenter";
 import type { TagInfo } from "../model/tags";
 import { revealMain } from "../presenter/splashPresenter";
@@ -13,6 +14,7 @@ import {
   type UpdateState,
 } from "../presenter/updatePresenter";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
+import { ExplorerSettings } from "./ExplorerSettings";
 import { SearchView } from "./SearchView";
 import { SettingsSheet } from "./SettingsSheet";
 import { TagSettings } from "./TagSettings";
@@ -37,6 +39,14 @@ export function App() {
   // The tag catalog, shared by the filters, the tag editor and the settings.
   const [tags, setTags] = useState<TagInfo[]>([]);
   const refreshTags = useCallback(() => void loadTags().then(setTags), []);
+  // Explorer's "Tag with Findex" menu lists the tags, so it is rewritten when their
+  // names change; a failure shows when the settings are opened.
+  const tagsKey = menuTagsKey(tags);
+  useEffect(() => {
+    if (tagsKey !== "") {
+      void syncMenu();
+    }
+  }, [tagsKey]);
   const [status, setStatus] = useState(() => summarize({ drives: [] }));
   const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
   const updater = useMemo(() => createUpdater({ onState: setUpdate }), []);
@@ -100,6 +110,7 @@ export function App() {
       {settingsOpen && (
         <SettingsSheet onClose={closeSettings}>
           <TagSettings catalog={tags} onCatalog={setTags} />
+          <ExplorerSettings />
         </SettingsSheet>
       )}
     </div>

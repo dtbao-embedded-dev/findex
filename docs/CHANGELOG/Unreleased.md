@@ -191,6 +191,17 @@
     not text, so their contents are not found.
   - **Rights:** a release build runs as administrator, so it can read, and list
     lines from, files your own account cannot open.
+- **Tag with Findex** in Explorer's right-click menu, on a folder and on the empty
+  space of an open folder: a submenu with one entry per tag (presets first, up to 16)
+  tags that folder while Findex stays in the tray. On Windows 11 it is under "Show
+  more options".
+  - **How:** each entry runs `findex-tag.exe`, a small helper installed beside Findex
+    that runs with your normal rights (Findex itself runs as administrator), and leaves
+    a request in Findex's `inbox` folder. Findex applies it within a second and the
+    tag shows on the result at once; if Findex is not running, at its next start.
+  - **Settings → Explorer** turns the menu on or off (on by default) and says why if
+    it cannot be set up. The menu follows the tags: a new or deleted tag shows there
+    the next time it is opened. Uninstalling Findex removes the menu.
 
 ### Changed
 

@@ -35,6 +35,9 @@ pub fn run() -> tauri::Result<()> {
             app.manage(db);
             app.manage(index);
             commands::watch_inbox(app.handle(), data.join("inbox"));
+            if let Err(err) = commands::sync_menu(app.handle()) {
+                eprintln!("could not set up the Explorer menu: {err}");
+            }
             splash::arm_fallback(app.handle());
             Ok(())
         })
@@ -73,7 +76,10 @@ pub fn run() -> tauri::Result<()> {
             commands::remove_tag,
             commands::tag_catalog,
             commands::create_tag,
-            commands::delete_tag
+            commands::delete_tag,
+            commands::explorer_menu,
+            commands::set_explorer_menu,
+            commands::sync_explorer_menu
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

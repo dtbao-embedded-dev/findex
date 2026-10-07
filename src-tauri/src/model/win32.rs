@@ -6,8 +6,9 @@ use std::ffi::c_void;
 use std::io;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_HANDLE_EOF, ERROR_JOURNAL_DELETE_IN_PROGRESS, ERROR_JOURNAL_ENTRY_DELETED,
-    ERROR_JOURNAL_NOT_ACTIVE, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE,
+    CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_HANDLE_EOF, ERROR_JOURNAL_DELETE_IN_PROGRESS,
+    ERROR_JOURNAL_ENTRY_DELETED, ERROR_JOURNAL_NOT_ACTIVE, ERROR_SUCCESS, GENERIC_READ, HANDLE,
+    INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Security::{
     GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
@@ -22,6 +23,10 @@ use windows_sys::Win32::System::Diagnostics::Debug::{SetThreadErrorMode, SEM_FAI
 use windows_sys::Win32::System::Ioctl::{
     FSCTL_ENUM_USN_DATA, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, MFT_ENUM_DATA_V1,
     READ_USN_JOURNAL_DATA_V1, USN_JOURNAL_DATA_V0,
+};
+use windows_sys::Win32::System::Registry::{
+    RegCloseKey, RegCreateKeyExW, RegDeleteTreeW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
+    KEY_WRITE, REG_OPTION_NON_VOLATILE, REG_SZ,
 };
 use windows_sys::Win32::System::Threading::{
     CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess,
@@ -454,6 +459,109 @@ pub fn file_type_name(ext: Option<&str>) -> Option<String> {
     }
     let text = from_wide(&info.szTypeName);
     (ok != 0 && !text.is_empty()).then_some(text)
+}
+
+/// Writes the string `value` under `HKEY_CURRENT_USER\<key>`, creating the key if
+/// needed; `name` `None` sets the key's default value.
+pub fn set_user_string(key: &str, name: Option<&str>, value: &str) -> io::Result<()> {
+    let key = wide(key);
+    let mut handle: HKEY = std::ptr::null_mut();
+    // SAFETY: `key` is NUL-terminated and outlives the call; the class and the
+    // security attributes may be null; `handle` receives the key, closed below.
+    let status = unsafe {
+        RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            0,
+            std::ptr::null(),
+            REG_OPTION_NON_VOLATILE,
+            KEY_WRITE,
+            std::ptr::null(),
+            &mut handle,
+            std::ptr::null_mut(),
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    let name = name.map(wide);
+    let data = wide(value);
+    // SAFETY: `handle` was just opened for writing; the name is null (the default
+    // value) or NUL-terminated; `data` is NUL-terminated UTF-16 and its length in
+    // bytes, terminator included, is passed with it.
+    let status = unsafe {
+        RegSetValueExW(
+            handle,
+            name.as_ref().map_or(std::ptr::null(), |name| name.as_ptr()),
+            0,
+            REG_SZ,
+            data.as_ptr().cast::<u8>(),
+            (data.len() * 2) as u32,
+        )
+    };
+    // SAFETY: closes the key opened above, once.
+    unsafe { RegCloseKey(handle) };
+    if status == ERROR_SUCCESS {
+        Ok(())
+    } else {
+        Err(io::Error::from_raw_os_error(status as i32))
+    }
+}
+
+/// The string under `HKEY_CURRENT_USER\<key>` (`name` `None` for the default
+/// value); `None` when the key or the value is not there. Tests read back what was
+/// written with it.
+#[cfg(test)]
+pub fn get_user_string(key: &str, name: Option<&str>) -> Option<String> {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, RRF_RT_REG_SZ};
+
+    let key = wide(key);
+    let name = name.map(wide);
+    let name_ptr = name.as_ref().map_or(std::ptr::null(), |name| name.as_ptr());
+    let mut bytes: u32 = 0;
+    // SAFETY: both strings are NUL-terminated or null; a null buffer asks only for
+    // the size, written to `bytes`.
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            name_ptr,
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut bytes,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return None;
+    }
+    let mut buffer = vec![0u16; (bytes as usize).div_ceil(2)];
+    let mut bytes = (buffer.len() * 2) as u32;
+    // SAFETY: `buffer` holds `bytes` bytes, the size the call reports it may write.
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            name_ptr,
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buffer.as_mut_ptr().cast::<c_void>(),
+            &mut bytes,
+        )
+    };
+    (status == ERROR_SUCCESS).then(|| from_wide(&buffer))
+}
+
+/// Deletes `HKEY_CURRENT_USER\<key>` with everything under it; a key that is not
+/// there counts as deleted.
+pub fn delete_user_tree(key: &str) -> io::Result<()> {
+    let key = wide(key);
+    // SAFETY: `key` is NUL-terminated and outlives the call.
+    let status = unsafe { RegDeleteTreeW(HKEY_CURRENT_USER, key.as_ptr()) };
+    match status {
+        ERROR_SUCCESS | ERROR_FILE_NOT_FOUND => Ok(()),
+        _ => Err(io::Error::from_raw_os_error(status as i32)),
+    }
 }
 
 /// A process or thread handle, closed on drop.
