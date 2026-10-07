@@ -2,13 +2,13 @@
 title: Search and Indexing Behavior
 category: behavior
 order: 1
-purpose: What each unit of name search does — drive lifecycle, query ranking, stale-result handling, status wording, setup and splash rules, reveal.
+purpose: What each unit of name search does — drive lifecycle, query ranking, stale-result handling, status wording, active drive and splash rules, reveal.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/index/service.rs, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/setupPresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
+source: src-tauri/src/model/index/service.rs, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/drivePresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchStatus, defaultSelection, revealMain, lifecycle, gap, resume
+keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchStatus, ensure_active, default_letter, revealMain, lifecycle, gap, resume
 ---
 
 # Search and Indexing Behavior
@@ -89,11 +89,13 @@ keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchS
   - **Count:** the total sums `searchable`.
 - **`watchStatus`:** subscribes first, then reads. The read is dropped if an event
   already arrived.
-- **Setup:**
-  - **Default selection:** C:, else the first fixed NTFS drive, else the first drive.
-  - **Saved choice:** any saved letter not plugged in now is dropped.
-  - **Saving:** stores the choice, then calls `start_index`. A failure keeps the
-    screen open.
+- **Active drive** (since 2026-10-07; replaced the setup screen):
+  - **One at a time:** `IndexService::start_saved` indexes only `drives::ensure_active`.
+    On the first launch that is `%SystemDrive%`, else the first fixed NTFS drive, else
+    the first drive (`default_letter`), saved at once.
+  - **Legacy list:** a saved `["C","E"]` loads as C:; E:'s `.fxi` stays on disk.
+  - **Switching:** `switch_to` saves the letter, then `start([letter])`, which drops
+    the other drive from memory. The picker lists the drives again on every open.
 - **Splash:** `revealMain` waits for the routing and for 900 ms, whichever is later,
   then calls `splash_ready`. A failure is ignored, because the Rust fallback shows
   main.
