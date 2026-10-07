@@ -10,6 +10,8 @@
   --bg: #ffffff;
   --surface: #ffffff;
   --raised: #ffffff;
+  /* The chosen segment of a segmented control: lifted above its track. */
+  --segment: #ffffff;
   --fg: #1d1d1f;
   --muted: #6e6e73;
   --tertiary: #aeaeb2;
@@ -55,6 +57,7 @@
     --bg: #1c1c1e;
     --surface: #1c1c1e;
     --raised: #2c2c2e;
+    --segment: #636366;
     --fg: #f5f5f7;
     --muted: #98989d;
     --tertiary: #636366;
@@ -804,7 +807,7 @@ button:focus-visible {
 }
 
 .segmented button[aria-checked="true"] {
-  background: var(--raised);
+  background: var(--segment);
   box-shadow: 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.06);
 }
 

@@ -217,6 +217,10 @@
 
 ### Fixed
 
+- In dark mode the chosen segment of a segmented control (Name | Contents, All |
+  Files | Folders) was darker than its track and hard to see; it is now lifted in a
+  lighter grey, as macOS draws it.
+
 ### Removed
 
 - The scaffold's greeting demo (`greet` command and its view), replaced by search.
