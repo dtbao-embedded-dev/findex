@@ -1,6 +1,6 @@
-<p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" alt="Findex icon" width="128" height="128">
-</p>
+<div align="center">
+
+<img src="src-tauri/icons/128x128@2x.png" alt="Findex icon" width="128" height="128">
 
 # Findex
 
@@ -8,6 +8,8 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB)
 ![Rust](https://img.shields.io/badge/Rust-stable-DEA584)
+
+</div>
 
 A desktop launcher that finds files and folders by name, searches keywords inside file contents, tags folders, and opens results in a terminal or any app.
 
