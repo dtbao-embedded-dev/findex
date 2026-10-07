@@ -275,7 +275,7 @@ impl IndexService {
             Method::Mft => match mft::build(letter, &mut |n| progress(n), &keep_going) {
                 Ok(built) => Ok((built.index, built.journal, Method::Mft, None)),
                 Err(err) => {
-                    let note = format!("Folder scan: the file table could not be read ({err})");
+                    let note = fallback_note(&err);
                     walk_drive(letter, &hooks).map(|index| (index, None, Method::Walk, Some(note)))
                 }
             },
@@ -432,6 +432,18 @@ impl IndexService {
     }
 }
 
+/// Why an NTFS drive is being folder-scanned, worded for the status bar. Missing
+/// rights is the usual cause and the user can fix it, so it says how.
+fn fallback_note(err: &AppError) -> String {
+    match err {
+        AppError::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => {
+            "Folder scan · open Findex as administrator for instant search and live updates"
+                .to_owned()
+        }
+        other => format!("Folder scan · this drive's file table could not be read ({other})"),
+    }
+}
+
 fn walk_drive(letter: char, hooks: &walk::Hooks<'_>) -> AppResult<VolumeIndex> {
     let root = format!("{letter}:\\");
     walk::build(&PathBuf::from(&root), &root, hooks)
@@ -510,6 +522,20 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].path, "Q:\\kept.txt");
+    }
+
+    #[test]
+    fn missing_rights_say_how_to_get_them() {
+        let denied = AppError::Io(std::io::Error::from_raw_os_error(5));
+        assert_eq!(
+            fallback_note(&denied),
+            "Folder scan · open Findex as administrator for instant search and live updates"
+        );
+        let other = AppError::Invalid("the volume is busy".into());
+        assert_eq!(
+            fallback_note(&other),
+            "Folder scan · this drive's file table could not be read (the volume is busy)"
+        );
     }
 
     #[test]

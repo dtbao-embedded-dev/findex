@@ -5,7 +5,7 @@ order: 1
 purpose: What each unit of name search does — drive lifecycle, query ranking, stale-result handling, status wording, setup and splash rules, reveal.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/index/service.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/setupPresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
+source: src-tauri/src/model/index/service.rs, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/setupPresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
 confidence: confirmed
 verified_at: 2026-10-07
 keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchStatus, defaultSelection, revealMain, lifecycle, gap, resume
@@ -27,7 +27,8 @@ keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchS
    snapshot.
 3. **Otherwise build.**
    - **NTFS:** read the MFT. If that fails (no admin), walk the folders instead, with a
-     "Folder scan: …" note.
+     "Folder scan · …" note (`fallback_note`): missing rights say "open Findex as
+     administrator…", other errors carry their reason.
    - **Other filesystems:** walk.
    - **Then:** save the snapshot (no lock held), install it, and mark the drive Ready.
 4. **Follow (NTFS with a journal).** Batches are applied under the write lock.
