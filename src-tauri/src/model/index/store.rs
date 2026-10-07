@@ -261,6 +261,20 @@ impl VolumeIndex {
         self.names.reserve(name_bytes);
         self.lower.reserve(name_bytes + entries);
     }
+
+    /// Bytes of memory the index holds: what each container has room for, the way
+    /// the allocator sees it, not only what is filled.
+    pub fn heap_bytes(&self) -> usize {
+        use std::mem::size_of;
+        // A map slot holds the key and value, plus one control byte.
+        let slot = size_of::<(u64, u32)>() + 1;
+        self.nodes.capacity() * size_of::<Node>()
+            + self.names.capacity()
+            + self.lower.capacity()
+            + self.starts.capacity() * size_of::<(u32, u32)>()
+            + self.by_frn.capacity() * slot
+            + self.frns.capacity() * size_of::<u64>()
+    }
 }
 
 fn push(arena: &mut String, text: &str) -> AppResult<Span> {
@@ -287,6 +301,25 @@ mod tests {
         index.upsert(11, 10, "Ada", true).unwrap();
         index.upsert(12, 11, "Report.PDF", false).unwrap();
         index
+    }
+
+    #[test]
+    fn counts_the_memory_its_names_and_nodes_hold() {
+        let empty = VolumeIndex::new("C:\\", ROOT);
+        let mut index = VolumeIndex::new("C:\\", ROOT);
+        let mut name_bytes = 0;
+        for i in 0..10_000_u64 {
+            let name = format!("file-{i:05}.txt");
+            name_bytes += name.len();
+            index.upsert(100 + i, ROOT, &name, false).unwrap();
+        }
+        let bytes = index.heap_bytes();
+        // Each name is kept twice (as given and lower case), and each entry has a node,
+        // a start, a file number and a map slot besides.
+        assert!(bytes >= 2 * name_bytes + 10_000 * (std::mem::size_of::<Node>() + 8 + 8 + 12));
+        assert!(bytes > empty.heap_bytes());
+        // Far less than a megabyte per thousand names: it is not counting wildly.
+        assert!(bytes < 10_000 * 200);
     }
 
     #[test]

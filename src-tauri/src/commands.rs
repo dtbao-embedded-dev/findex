@@ -9,12 +9,13 @@ use crate::model::about::{self, About};
 use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
-use crate::model::find;
+use crate::model::find::{self, Answer};
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
-use crate::model::search::{Hit, DEFAULT_LIMIT};
-use crate::model::tags::{self, TagCount};
+use crate::model::search::Filters;
+use crate::model::settings;
+use crate::model::tags::{self, TagInfo};
 use crate::splash;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -36,6 +37,18 @@ pub fn get_setting(db: State<'_, Db>, key: &str) -> AppResult<Option<String>> {
 #[tauri::command]
 pub fn set_setting(db: State<'_, Db>, key: &str, value: &str) -> AppResult<()> {
     db.set_setting(key, value)
+}
+
+/// How many results a search shows.
+#[tauri::command]
+pub fn get_results_limit(db: State<'_, Db>) -> AppResult<usize> {
+    settings::results_limit(&db)
+}
+
+/// Saves how many results a search shows; a value out of range is refused.
+#[tauri::command]
+pub fn set_results_limit(db: State<'_, Db>, limit: usize) -> AppResult<usize> {
+    settings::set_results_limit(&db, limit)
 }
 
 #[tauri::command]
@@ -95,23 +108,37 @@ pub async fn save_index(index: State<'_, Arc<IndexService>>) -> AppResult<()> {
         .map_err(|err| AppError::Invalid(format!("saving the index stopped: {err}")))
 }
 
+/// Reads the active drive again from scratch; progress arrives as `index-status`
+/// events. Off the main thread: starting waits for the index lock.
+#[tauri::command]
+pub async fn rescan_drive(app: AppHandle) -> AppResult<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<Db>();
+        let index = app.state::<Arc<IndexService>>();
+        index.rescan(&db, status_emitter(&app))
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("the re-scan could not start: {err}")))?
+}
+
 #[tauri::command]
 pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
     Ok(index.status())
 }
 
-/// Runs off the async runtime: a query is CPU work across every core. Resolves to
-/// null when a newer query replaced this one. `tag:` queries read the tags table.
+/// Runs off the async runtime: a query is CPU work across every core, and a date
+/// filter waits on the disk. Resolves to null when a newer query replaced this one.
+/// Tags are read from the tags table; the number of results from the settings.
 #[tauri::command]
 pub async fn search_names(
     app: AppHandle,
     query: String,
-    limit: Option<usize>,
-) -> AppResult<Option<Vec<Hit>>> {
+    filters: Option<Filters>,
+) -> AppResult<Option<Answer>> {
     tauri::async_runtime::spawn_blocking(move || {
         let db = app.state::<Db>();
         let index = app.state::<Arc<IndexService>>();
-        find::search(&db, &index, &query, limit.unwrap_or(DEFAULT_LIMIT))
+        find::search_saved(&db, &index, &query, &filters.unwrap_or_default())
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))?
@@ -138,9 +165,21 @@ pub fn remove_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<Str
     tags::remove(&db, path, tag)
 }
 
+/// Every tag that can be picked: the colour presets, then custom tags.
 #[tauri::command]
-pub fn list_tags(db: State<'_, Db>) -> AppResult<Vec<TagCount>> {
-    tags::all(&db)
+pub fn tag_catalog(db: State<'_, Db>) -> AppResult<Vec<TagInfo>> {
+    tags::catalog(&db)
+}
+
+#[tauri::command]
+pub fn create_tag(db: State<'_, Db>, tag: &str) -> AppResult<Vec<TagInfo>> {
+    tags::create(&db, tag)
+}
+
+/// Deletes a custom tag and takes it off every folder.
+#[tauri::command]
+pub fn delete_tag(db: State<'_, Db>, tag: &str) -> AppResult<Vec<TagInfo>> {
+    tags::delete(&db, tag)
 }
 
 #[tauri::command]

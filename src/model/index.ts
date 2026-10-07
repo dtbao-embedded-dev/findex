@@ -21,6 +21,11 @@ export function getIndexStatus(): Promise<IndexStatus> {
   return invoke<IndexStatus>("index_status");
 }
 
+/** Reads the active drive again from scratch; resolves to its letter once started. */
+export function rescanDrive(): Promise<string> {
+  return invoke<string>("rescan_drive");
+}
+
 /** Calls `onChange` with every status Rust sends; resolves to the unsubscribe call. */
 export function onIndexStatus(onChange: (status: IndexStatus) => void): Promise<UnlistenFn> {
   return listen<IndexStatus>("index-status", (event) => onChange(event.payload));

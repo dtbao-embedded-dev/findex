@@ -49,15 +49,20 @@ pub fn describe(paths: &[String]) -> Vec<Details> {
                 path: path.clone(),
                 kind: kind_of(ext.as_deref()),
                 size: ext.is_some().then_some(meta.len()),
-                modified: meta
-                    .modified()
-                    .ok()
-                    .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-                    .and_then(|since| i64::try_from(since.as_millis()).ok()),
+                modified: modified_ms(&meta),
                 tags: Vec::new(),
             }
         })
         .collect()
+}
+
+/// When the file or folder `meta` describes last changed, in milliseconds since the
+/// Unix epoch; `None` when the filesystem does not say, or for a date before 1970.
+pub fn modified_ms(meta: &std::fs::Metadata) -> Option<i64> {
+    meta.modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .and_then(|since| i64::try_from(since.as_millis()).ok())
 }
 
 /// [`describe`], with each folder's tags filled in from the tags table.

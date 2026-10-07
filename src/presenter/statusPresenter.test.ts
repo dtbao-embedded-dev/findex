@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DriveStatus, IndexStatus } from "../model/index";
-import { summarize, watchStatus, type StatusLine } from "./statusPresenter";
+import { rescan, rescanLabel, summarize, watchStatus, type StatusLine } from "./statusPresenter";
 
 /** A drive status; a ready drive's entries are all searchable unless said otherwise. */
 function drive(letter: string, more: Partial<DriveStatus> = {}): DriveStatus {
@@ -78,5 +78,20 @@ describe("watchStatus", () => {
       },
     );
     expect(lines.map((l) => l.total)).toEqual([9]);
+  });
+});
+
+describe("rescan", () => {
+  it("starts a re-scan, or says why it could not", async () => {
+    expect(await rescan(async () => "C")).toBeNull();
+    expect(await rescan(async () => Promise.reject("no drive is chosen to re-scan"))).toBe(
+      "no drive is chosen to re-scan",
+    );
+  });
+
+  it("names the drive it re-reads, and says when a read is already running", () => {
+    expect(rescanLabel("E", false)).toBe("Re-scan E: from scratch");
+    expect(rescanLabel(null, false)).toBe("Re-scan the drive from scratch");
+    expect(rescanLabel("E", true)).toBe("Indexing…");
   });
 });

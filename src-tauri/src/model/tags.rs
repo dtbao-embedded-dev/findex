@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::params_from_iter;
+use rusqlite::{params_from_iter, OptionalExtension};
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
@@ -14,11 +14,15 @@ use crate::model::db::Db;
 /// The longest tag, in characters: a tag is a word, not a note.
 const MAX_TAG: usize = 32;
 
-/// A tag and how many folders carry it.
+/// One tag that can be picked, and how many folders carry it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TagCount {
+pub struct TagInfo {
     pub tag: String,
+    /// The colour a preset tag is drawn in; custom tags have none.
+    pub color: Option<String>,
+    /// True for the colour tags that ship with the app and cannot be deleted.
+    pub preset: bool,
     pub folders: u32,
 }
 
@@ -33,11 +37,74 @@ pub fn add(db: &Db, path: &str, tag: &str) -> AppResult<Vec<String>> {
         )));
     }
     let conn = db.conn()?;
+    // A tag typed on a folder joins the catalog as a custom tag.
+    conn.execute("INSERT OR IGNORE INTO tag (name) VALUES (?1)", [&tag])?;
     conn.execute(
         "INSERT OR IGNORE INTO folder_tag (path, tag) VALUES (?1, ?2)",
         [&path, &tag],
     )?;
     tags_of(&conn, &path)
+}
+
+/// Every tag that can be picked, with its folder count: the colour presets in their
+/// fixed order, then custom tags by name.
+pub fn catalog(db: &Db) -> AppResult<Vec<TagInfo>> {
+    catalog_of(&*db.conn()?)
+}
+
+/// Adds a custom tag to the catalog and returns the catalog. A tag that already
+/// exists is refused, so a typo is never silently merged into another tag.
+pub fn create(db: &Db, tag: &str) -> AppResult<Vec<TagInfo>> {
+    let tag = normalize_tag(tag)?;
+    let conn = db.conn()?;
+    let added = conn.execute("INSERT OR IGNORE INTO tag (name) VALUES (?1)", [&tag])?;
+    if added == 0 {
+        return Err(AppError::Invalid(format!("the tag {tag} already exists")));
+    }
+    catalog_of(&conn)
+}
+
+/// Deletes a custom tag, taking it off every folder, and returns the catalog. The
+/// colour presets cannot be deleted.
+pub fn delete(db: &Db, tag: &str) -> AppResult<Vec<TagInfo>> {
+    let tag = normalize_tag(tag)?;
+    let mut conn = db.conn()?;
+    let tx = conn.transaction()?;
+    let preset: Option<bool> = tx
+        .query_row("SELECT preset FROM tag WHERE name = ?1", [&tag], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    match preset {
+        None => return Err(AppError::Invalid(format!("there is no tag {tag}"))),
+        Some(true) => {
+            return Err(AppError::Invalid(format!(
+                "{tag} is a colour tag and cannot be deleted"
+            )))
+        }
+        Some(false) => {}
+    }
+    tx.execute("DELETE FROM folder_tag WHERE tag = ?1", [&tag])?;
+    tx.execute("DELETE FROM tag WHERE name = ?1", [&tag])?;
+    tx.commit()?;
+    catalog_of(&conn)
+}
+
+fn catalog_of(conn: &rusqlite::Connection) -> AppResult<Vec<TagInfo>> {
+    let mut statement = conn.prepare(
+        "SELECT t.name, t.color, t.preset, COUNT(f.path) FROM tag t \
+         LEFT JOIN folder_tag f ON f.tag = t.name \
+         GROUP BY t.name ORDER BY t.ord, t.name",
+    )?;
+    let rows = statement.query_map([], |row| {
+        Ok(TagInfo {
+            tag: row.get(0)?,
+            color: row.get(1)?,
+            preset: row.get(2)?,
+            folders: row.get(3)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 /// Removes `tag` from the folder at `path`; returns the tags left, sorted.
@@ -80,20 +147,6 @@ pub fn for_paths(db: &Db, paths: &[String]) -> AppResult<HashMap<String, Vec<Str
                 .map(|t| (path.clone(), t.clone()))
         })
         .collect())
-}
-
-/// Every tag in use with its folder count, most used first.
-pub fn all(db: &Db) -> AppResult<Vec<TagCount>> {
-    let conn = db.conn()?;
-    let mut statement = conn
-        .prepare("SELECT tag, COUNT(*) FROM folder_tag GROUP BY tag ORDER BY COUNT(*) DESC, tag")?;
-    let rows = statement.query_map([], |row| {
-        Ok(TagCount {
-            tag: row.get(0)?,
-            folders: row.get(1)?,
-        })
-    })?;
-    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 /// The folders that carry every one of `tags`.
@@ -207,26 +260,85 @@ mod tests {
         assert_eq!(found[&upper], ["work"]);
     }
 
+    fn custom(tag: &str, folders: u32) -> TagInfo {
+        TagInfo {
+            tag: tag.into(),
+            color: None,
+            preset: false,
+            folders,
+        }
+    }
+
     #[test]
-    fn counts_tags_and_finds_folders_carrying_all_of_them() {
+    fn the_catalog_lists_the_colour_presets_then_custom_tags_with_counts() {
+        let db = db::open_in_memory().unwrap();
+        let (a, b) = (folder("cat-a"), folder("cat-b"));
+        add(&db, &a, "work").unwrap();
+        add(&db, &b, "work").unwrap();
+        add(&db, &a, "blue").unwrap();
+        create(&db, "archive").unwrap();
+        let found = catalog(&db).unwrap();
+        let names: Vec<&str> = found.iter().map(|t| t.tag.as_str()).collect();
+        assert_eq!(
+            names,
+            ["red", "orange", "yellow", "green", "blue", "purple", "gray", "archive", "work"]
+        );
+        assert_eq!(
+            found[4],
+            TagInfo {
+                tag: "blue".into(),
+                color: Some("blue".into()),
+                preset: true,
+                folders: 1
+            }
+        );
+        assert_eq!(found[7], custom("archive", 0));
+        assert_eq!(found[8], custom("work", 2));
+    }
+
+    #[test]
+    fn a_new_tag_must_be_valid_and_not_exist_yet() {
+        let db = db::open_in_memory().unwrap();
+        let after = create(&db, " #FW ").unwrap();
+        assert!(after.contains(&custom("fw", 0)));
+        for bad in ["fw", "FW", "red", "two words", ""] {
+            assert!(
+                matches!(create(&db, bad), Err(AppError::Invalid(_))),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn deleting_a_custom_tag_takes_it_off_every_folder() {
+        let db = db::open_in_memory().unwrap();
+        let (a, b) = (folder("del-a"), folder("del-b"));
+        add(&db, &a, "fw").unwrap();
+        add(&db, &b, "fw").unwrap();
+        add(&db, &a, "work").unwrap();
+        let after = delete(&db, "#FW").unwrap();
+        assert!(after.iter().all(|t| t.tag != "fw"));
+        assert!(folders_with(&db, &["fw".into()]).unwrap().is_empty());
+        assert_eq!(remove(&db, &a, "none").unwrap(), ["work"]);
+    }
+
+    #[test]
+    fn a_preset_or_unknown_tag_cannot_be_deleted() {
+        let db = db::open_in_memory().unwrap();
+        let dir = folder("del-preset");
+        add(&db, &dir, "red").unwrap();
+        assert!(matches!(delete(&db, "red"), Err(AppError::Invalid(_))));
+        assert!(matches!(delete(&db, "nothing"), Err(AppError::Invalid(_))));
+        assert_eq!(folders_with(&db, &["red".into()]).unwrap(), [dir]);
+    }
+
+    #[test]
+    fn finds_folders_carrying_all_of_their_tags() {
         let db = db::open_in_memory().unwrap();
         let (a, b) = (folder("all-a"), folder("all-b"));
         add(&db, &a, "work").unwrap();
         add(&db, &a, "fw").unwrap();
         add(&db, &b, "work").unwrap();
-        assert_eq!(
-            all(&db).unwrap(),
-            [
-                TagCount {
-                    tag: "work".into(),
-                    folders: 2
-                },
-                TagCount {
-                    tag: "fw".into(),
-                    folders: 1
-                },
-            ]
-        );
         let mut both = folders_with(&db, &["work".into()]).unwrap();
         both.sort();
         let mut expected = vec![a.clone(), b];

@@ -1,6 +1,7 @@
 import {
   getIndexStatus,
   onIndexStatus,
+  rescanDrive,
   type IndexStatus,
 } from "../model/index";
 
@@ -62,4 +63,25 @@ export async function watchStatus(
     // The events still arrive; the first one fills the bar.
   }
   return unlisten;
+}
+
+/**
+ * Starts reading the active drive again from scratch; progress then shows in the
+ * status bar like any indexing. Resolves to the error to show, or null.
+ */
+export async function rescan(start: () => Promise<string> = rescanDrive): Promise<string | null> {
+  try {
+    await start();
+    return null;
+  } catch (err) {
+    return String(err);
+  }
+}
+
+/** The re-scan button's tooltip: what it re-reads, or that a read is running. */
+export function rescanLabel(active: string | null, busy: boolean): string {
+  if (busy) {
+    return "Indexing…";
+  }
+  return active === null ? "Re-scan the drive from scratch" : `Re-scan ${active}: from scratch`;
 }

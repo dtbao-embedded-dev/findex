@@ -23,7 +23,7 @@ use crate::model::db::Db;
 use crate::model::drives::{self, Method};
 use crate::model::index::store::VolumeIndex;
 use crate::model::index::{mft, snapshot, walk, watch};
-use crate::model::search::{self, Hit};
+use crate::model::search::{self, Hit, Query};
 use crate::model::win32::{self, Journal};
 
 /// How the service reports progress; the app turns it into an `index-status` event.
@@ -90,6 +90,15 @@ impl IndexService {
         }
     }
 
+    /// A service already holding `volumes`, for tests of the modules that search it.
+    #[cfg(test)]
+    pub fn with_volumes(volumes: Vec<VolumeIndex>) -> Self {
+        Self {
+            volumes: RwLock::new(volumes),
+            ..Self::default()
+        }
+    }
+
     /// Indexes the active drive, choosing the system drive on the first launch. Does
     /// nothing only when no drive can be found.
     pub fn start_saved(self: &Arc<Self>, db: &Db, emit: Emit) -> AppResult<()> {
@@ -107,8 +116,24 @@ impl IndexService {
         Ok(letter)
     }
 
+    /// Reads the active drive again from scratch, as asked for by the user: the
+    /// journal is not trusted to catch up. Its current index stays searchable until
+    /// the new one replaces it. Returns the drive's letter.
+    pub fn rescan(self: &Arc<Self>, db: &Db, emit: Emit) -> AppResult<String> {
+        let letter = drives::load_active(db)?
+            .ok_or_else(|| AppError::Invalid("no drive is chosen to re-scan".into()))?;
+        self.begin(std::slice::from_ref(&letter), emit, true);
+        Ok(letter)
+    }
+
     /// (Re)indexes exactly `letters`, dropping drives no longer chosen.
     pub fn start(self: &Arc<Self>, letters: &[String], emit: Emit) {
+        self.begin(letters, emit, false);
+    }
+
+    /// Starts a run over `letters`; with `rebuild`, every drive is read from scratch
+    /// even when its journal could bring its snapshot up to date.
+    fn begin(self: &Arc<Self>, letters: &[String], emit: Emit, rebuild: bool) {
         let run = self.run.fetch_add(1, Ordering::SeqCst) + 1;
         let chosen: Vec<char> = letters.iter().filter_map(|l| l.chars().next()).collect();
         let kept: Vec<(char, usize)> = {
@@ -149,7 +174,7 @@ impl IndexService {
         for (letter, method) in plan {
             let service = Arc::clone(self);
             let emit = Arc::clone(&emit);
-            std::thread::spawn(move || service.index_drive(run, letter, method, &emit));
+            std::thread::spawn(move || service.index_drive(run, letter, method, rebuild, &emit));
         }
     }
 
@@ -157,15 +182,33 @@ impl IndexService {
         self.lock_status().clone()
     }
 
-    /// Searches every ready drive. Returns `None` when a newer search replaced this
-    /// one before it finished, so the caller can drop it.
-    pub fn search(&self, text: &str, limit: usize) -> Option<Vec<Hit>> {
+    /// Starts a search, which stops every search still running. Returns the check
+    /// that reports when this one has in turn been replaced by a newer search.
+    pub fn begin_search(&self) -> impl Fn() -> bool + Sync + '_ {
         let mine = self.query.fetch_add(1, Ordering::SeqCst) + 1;
-        let query = search::parse(text);
+        move || self.query.load(Ordering::Relaxed) != mine
+    }
+
+    /// Searches every ready drive. Returns `None` when `cancelled` reports, before it
+    /// finished, that a newer search replaced this one, so the caller can drop it.
+    pub fn search(
+        &self,
+        query: &Query,
+        limit: usize,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<Vec<Hit>> {
         let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
-        search::run(&volumes, &query, limit, &|| {
-            self.query.load(Ordering::Relaxed) != mine
-        })
+        search::run(&volumes, query, limit, cancelled)
+    }
+
+    /// Bytes of memory the indexes of the chosen drives hold.
+    pub fn memory_bytes(&self) -> usize {
+        self.volumes
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .map(VolumeIndex::heap_bytes)
+            .sum()
     }
 
     /// Saves every drive changed by live updates since its last save; called on quit,
@@ -181,10 +224,11 @@ impl IndexService {
     /// the journal when the snapshot allows, else rebuilding), then, for NTFS, follow
     /// the journal until a newer start takes over. A journal gap rebuilds and follows
     /// again.
-    fn index_drive(&self, run: u64, letter: char, method: Method, emit: &Emit) {
+    fn index_drive(&self, run: u64, letter: char, method: Method, rebuild: bool, emit: &Emit) {
         let saved = self.load_snapshot(run, letter, emit);
-        let mut resume =
-            saved.filter(|journal| method == Method::Mft && watch::continues(letter, journal));
+        let mut resume = resume_point(saved, method, rebuild, |journal| {
+            watch::continues(letter, journal)
+        });
         loop {
             let journal = match resume.take() {
                 Some(journal) => {
@@ -441,6 +485,21 @@ impl IndexService {
     }
 }
 
+/// Where a drive's index starts from: the journal position its snapshot is current
+/// to, when the journal still reaches back that far and can bring it up to date.
+/// `None` means a full read, which a re-scan always asks for.
+fn resume_point(
+    saved: Option<Journal>,
+    method: Method,
+    rebuild: bool,
+    continues: impl FnOnce(&Journal) -> bool,
+) -> Option<Journal> {
+    if rebuild {
+        return None;
+    }
+    saved.filter(|journal| method == Method::Mft && continues(journal))
+}
+
 /// Why an NTFS drive is being folder-scanned, worded for the status bar. Missing
 /// rights is the usual cause and the user can fix it, so it says how.
 fn fallback_note(err: &AppError) -> String {
@@ -478,13 +537,16 @@ mod tests {
         Arc::new(|_| {})
     }
 
+    fn search(service: &IndexService, text: &str) -> Option<Vec<Hit>> {
+        service.search(&search::parse(text), 10, &service.begin_search())
+    }
+
     #[test]
     fn searches_installed_drives_in_letter_order() {
         let service = IndexService::default();
         assert!(service.install(0, volume('D', &["plan.md"])));
         assert!(service.install(0, volume('C', &["plan.md"])));
-        let paths: Vec<_> = service
-            .search("plan", 10)
+        let paths: Vec<_> = search(&service, "plan")
             .unwrap()
             .into_iter()
             .map(|hit| hit.path)
@@ -497,8 +559,8 @@ mod tests {
         let service = IndexService::default();
         service.install(0, volume('C', &["old.txt"]));
         service.install(0, volume('C', &["new.txt"]));
-        assert!(service.search("old", 10).unwrap().is_empty());
-        assert_eq!(service.search("new", 10).unwrap().len(), 1);
+        assert!(search(&service, "old").unwrap().is_empty());
+        assert_eq!(search(&service, "new").unwrap().len(), 1);
     }
 
     #[test]
@@ -506,7 +568,7 @@ mod tests {
         let service = Arc::new(IndexService::default());
         service.start(&[], quiet());
         assert!(!service.install(0, volume('C', &["stale.txt"])));
-        assert!(service.search("stale", 10).unwrap().is_empty());
+        assert!(search(&service, "stale").unwrap().is_empty());
     }
 
     #[test]
@@ -514,7 +576,7 @@ mod tests {
         let service = Arc::new(IndexService::default());
         service.install(0, volume('C', &["a.txt"]));
         service.start(&[], quiet());
-        assert!(service.search("a", 10).unwrap().is_empty());
+        assert!(search(&service, "a").unwrap().is_empty());
         assert_eq!(service.status(), Status::default());
     }
 
@@ -525,9 +587,9 @@ mod tests {
         first.save_snapshot(&volume('Q', &["kept.txt"]), None);
 
         let next = IndexService::with_snapshots(dir.clone());
-        assert!(next.search("kept", 10).unwrap().is_empty());
+        assert!(search(&next, "kept").unwrap().is_empty());
         next.load_snapshot(0, 'Q', &quiet());
-        let hits = next.search("kept", 10).unwrap();
+        let hits = search(&next, "kept").unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].path, "Q:\\kept.txt");
@@ -555,8 +617,8 @@ mod tests {
         service.install(0, volume('Q', &["new.txt"]));
         service.load_snapshot(0, 'Q', &quiet());
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(service.search("new", 10).unwrap().len(), 1);
-        assert!(service.search("old", 10).unwrap().is_empty());
+        assert_eq!(search(&service, "new").unwrap().len(), 1);
+        assert!(search(&service, "old").unwrap().is_empty());
     }
 
     #[test]
@@ -567,7 +629,63 @@ mod tests {
         let service = IndexService::with_snapshots(dir.clone());
         service.load_snapshot(0, 'Q', &quiet());
         let _ = std::fs::remove_dir_all(&dir);
-        assert!(service.search("garbage", 10).unwrap().is_empty());
+        assert!(search(&service, "garbage").unwrap().is_empty());
+    }
+
+    fn journal() -> Journal {
+        Journal {
+            id: 7,
+            first_usn: 0,
+            next_usn: 42,
+        }
+    }
+
+    #[test]
+    fn a_drive_resumes_from_its_journal_unless_a_rescan_asks_for_a_full_read() {
+        assert_eq!(
+            resume_point(Some(journal()), Method::Mft, false, |_| true),
+            Some(journal())
+        );
+        assert_eq!(
+            resume_point(Some(journal()), Method::Mft, true, |_| true),
+            None
+        );
+        assert_eq!(
+            resume_point(Some(journal()), Method::Mft, false, |_| false),
+            None
+        );
+        assert_eq!(
+            resume_point(Some(journal()), Method::Walk, false, |_| true),
+            None
+        );
+        assert_eq!(resume_point(None, Method::Mft, false, |_| true), None);
+    }
+
+    #[test]
+    fn a_rescan_needs_a_chosen_drive() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        let service = Arc::new(IndexService::default());
+        assert!(matches!(
+            service.rescan(&db, quiet()),
+            Err(AppError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn a_rescan_indexes_again_and_keeps_the_old_index_searchable() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        // A letter no machine has, so the new read fails fast and changes nothing.
+        db.set_setting("scan.drives", "[\"Q\"]").unwrap();
+        let service = Arc::new(IndexService::default());
+        service.install(0, volume('Q', &["kept.txt"]));
+        let seen = Arc::new(Mutex::new(Vec::<Status>::new()));
+        let record = Arc::clone(&seen);
+        let emit: Emit = Arc::new(move |status| record.lock().unwrap().push(status.clone()));
+        assert_eq!(service.rescan(&db, emit).unwrap(), "Q");
+        let first = seen.lock().unwrap()[0].clone();
+        assert_eq!(first.drives[0].state, DriveState::Indexing);
+        assert_eq!(first.drives[0].searchable, 1);
+        assert_eq!(search(&service, "kept").unwrap().len(), 1);
     }
 
     #[test]

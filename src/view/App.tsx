@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
 import { loadActive } from "../presenter/drivePresenter";
+import type { TagInfo } from "../model/tags";
+import { loadLimit, RESULTS_DEFAULT } from "../presenter/settingsPresenter";
 import { revealMain } from "../presenter/splashPresenter";
-import { summarize, watchStatus } from "../presenter/statusPresenter";
+import { loadTags } from "../presenter/tagPresenter";
+import { rescan, rescanLabel, summarize, watchStatus } from "../presenter/statusPresenter";
 import {
   createUpdater,
   listenForChecks,
@@ -11,7 +15,10 @@ import {
 } from "../presenter/updatePresenter";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
 import { SearchView } from "./SearchView";
+import { SettingsSheet } from "./SettingsSheet";
+import { TagSettings } from "./TagSettings";
 import { StatusBar } from "./StatusBar";
+import { Toast } from "./Toast";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
 
@@ -22,18 +29,38 @@ import { UpdateBanner } from "./UpdateBanner";
  * Updates are checked in the background; a ready one is offered above the status bar.
  */
 export function App() {
+  const [title, setTitle] = useState(initialTitle);
   const [active, setActive] = useState<string | null>(null);
+  const [limit, setLimit] = useState(RESULTS_DEFAULT);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Why a re-scan could not start; it fades like any other note.
+  const [rescanError, setRescanError] = useState<string | null>(null);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  // The tag catalog, shared by the sidebar, the filters, the tag editor and the settings.
+  const [tags, setTags] = useState<TagInfo[]>([]);
+  const refreshTags = useCallback(() => void loadTags().then(setTags), []);
   const [status, setStatus] = useState(() => summarize({ drives: [] }));
   const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
   const updater = useMemo(() => createUpdater({ onState: setUpdate }), []);
 
   useEffect(() => {
+    void loadTitle().then(setTitle);
+    void loadLimit().then(setLimit);
+    refreshTags();
     void revealMain(loadActive().then(setActive));
     const stop = watchStatus(setStatus);
     return () => {
       void stop.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    if (rescanError === null) {
+      return;
+    }
+    const timer = setTimeout(() => setRescanError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [rescanError]);
 
   useEffect(() => {
     const stopChecks = scheduleChecks(() => void updater.check(false));
@@ -47,18 +74,35 @@ export function App() {
   return (
     <div className="app">
       <TitleBar
-        title="Findex"
+        title={title}
         onMinimize={minimizeWindow}
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
+        onSettings={() => setSettingsOpen(true)}
+        onRescan={() => void rescan().then(setRescanError)}
+        rescanLabel={rescanLabel(active, status.busy)}
+        busy={status.busy}
       />
-      <SearchView total={status.total} active={active} onActiveChange={setActive} />
+      <SearchView
+        total={status.total}
+        active={active}
+        onActiveChange={setActive}
+        limit={limit}
+        tags={tags}
+        onTagsChanged={refreshTags}
+      />
       <UpdateBanner
         state={update}
         onRestart={() => void updater.restart()}
         onLater={updater.later}
       />
       <StatusBar line={status} />
+      {rescanError !== null && <Toast text={rescanError} tone="error" />}
+      {settingsOpen && (
+        <SettingsSheet limit={limit} onLimitChange={setLimit} onClose={closeSettings}>
+          <TagSettings catalog={tags} onCatalog={setTags} />
+        </SettingsSheet>
+      )}
     </div>
   );
 }

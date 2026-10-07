@@ -5,10 +5,10 @@ order: 1
 purpose: What each unit of name search does — drive lifecycle, query ranking, stale-result handling, status wording, active drive and splash rules, reveal.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/index/service.rs, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/drivePresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
+source: src-tauri/src/model/index/service.rs, src-tauri/src/model/dated.rs, src-tauri/src/model/find.rs, src-tauri/src/model/settings.rs, src-tauri/src/model/index/store.rs, src/presenter/filterPresenter.ts, src/presenter/listPresenter.ts, src-tauri/src/model/elevation.rs, src-tauri/src/model/search.rs, src-tauri/src/model/reveal.rs, src-tauri/src/model/drives.rs, src/presenter/searchPresenter.ts, src/presenter/statusPresenter.ts, src/presenter/drivePresenter.ts, src/presenter/splashPresenter.ts, src/view/SearchView.tsx
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchStatus, ensure_active, default_letter, revealMain, lifecycle, gap, resume
+keywords: ranking, tier, filters, date filter, partial, rescan, resume_point, results limit, heap_bytes, latestOnly, keepSelection, highlight, summarize, watchStatus, ensure_active, default_letter, revealMain, lifecycle, gap, resume
 ---
 
 # Search and Indexing Behavior
@@ -68,6 +68,27 @@ keywords: ranking, tier, latestOnly, keepSelection, highlight, summarize, watchS
   built only for the winners.
 - **Cancellation:** checked at chunk start and every 1024 matches. A cancelled query
   returns `None`.
+
+## Filters, limit, re-scan and memory (2026-10-07, `feat/ui-redesign-filters`)
+
+- **Filters:** `search::Query::narrow` merges the filter bar (kind replaces `type:`,
+  tags join `tag:`). A date range goes through `dated::keep` on a larger name pool;
+  see [commands and events](../interface/commands-and-events.md). A date or kind with
+  no name lists nothing (`canSearch`); a tag alone lists tagged folders.
+- **Cancellation:** `IndexService::begin_search` bumps the query counter and returns
+  the "replaced?" check, passed to `search::run` and to `dated::keep`. A tag query
+  also begins a search, so it cancels an older index search.
+- **Measured (debug build, E: walk, 1.18 M names):** `report` + Last 30 days 36 ms;
+  `e` + last day (pool of 20 000 checked) about 0.8 s with `partial`; `a` at 10 000
+  results 0.39 s against 0.07 s at 200.
+- **Results limit:** `settings::results_limit` (key `search.results_limit`), read by
+  `find::search_saved` on every search; the frontend re-asks when it changes.
+- **Re-scan:** `IndexService::rescan` starts a run with `rebuild`; `resume_point`
+  returns `None` for it, so an NTFS drive is read from its MFT again instead of
+  resuming from the journal. `load_snapshot` keeps the installed index searchable
+  meanwhile (checked: 200 hits for `findex` during a 4 s re-read of E:).
+- **Memory:** `VolumeIndex::heap_bytes` sums container capacities; 133 MB for E:
+  against a 191 MB working set (156 MB private) for the debug app.
 
 ## Frontend
 

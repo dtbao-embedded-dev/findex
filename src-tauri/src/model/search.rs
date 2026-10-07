@@ -13,8 +13,9 @@ use std::ops::Range;
 use memchr::memchr;
 use memchr::memmem::Finder;
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use crate::model::dated;
 use crate::model::index::store::{VolumeIndex, SEPARATOR};
 
 pub const DEFAULT_LIMIT: usize = 200;
@@ -29,11 +30,33 @@ const CHUNK_NODES: usize = 65_536;
 /// How many matches a task handles between two cancellation checks.
 const CANCEL_EVERY: u32 = 1024;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Kind {
+    #[default]
     Any,
     File,
     Folder,
+}
+
+/// What the filter bar adds to the typed query. Every field narrows the results;
+/// the default narrows nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Filters {
+    pub kind: Kind,
+    pub tags: Vec<String>,
+    /// Last changed at or after, in milliseconds since the Unix epoch.
+    pub modified_from: Option<i64>,
+    /// Last changed before, in milliseconds since the Unix epoch.
+    pub modified_to: Option<i64>,
+}
+
+impl Filters {
+    /// The last-change range to keep, when either bound is set.
+    pub fn modified(&self) -> Option<dated::Range> {
+        dated::Range::new(self.modified_from, self.modified_to)
+    }
 }
 
 /// A parsed query: every term must appear in the name; filters narrow further.
@@ -54,6 +77,21 @@ impl Query {
 
     pub fn tags(&self) -> &[String] {
         &self.tags
+    }
+
+    /// Adds the filter bar's choices: its kind replaces a typed `type:`, and its tags
+    /// join the typed `tag:` ones.
+    pub fn narrow(&mut self, filters: &Filters) {
+        if filters.kind != Kind::Any {
+            self.kind = filters.kind;
+        }
+        self.tags.extend(
+            filters
+                .tags
+                .iter()
+                .map(|tag| tag.trim().trim_start_matches('#').to_lowercase())
+                .filter(|tag| !tag.is_empty()),
+        );
     }
 }
 
@@ -453,6 +491,38 @@ mod tests {
         let query = parse("proj tag:Work;fw TAG:esp");
         assert_eq!(query.tags(), ["work", "fw", "esp"]);
         assert_eq!(query.terms, ["proj"]);
+    }
+
+    #[test]
+    fn the_filter_bar_narrows_a_typed_query() {
+        let mut query = parse("proj tag:work type:file");
+        query.narrow(&Filters {
+            kind: Kind::Folder,
+            tags: vec!["#FW".into(), " ".into()],
+            ..Filters::default()
+        });
+        assert_eq!(query.kind, Kind::Folder);
+        assert_eq!(query.tags(), ["work", "fw"]);
+        assert_eq!(query.terms, ["proj"]);
+
+        // "Any" leaves a typed type: alone.
+        let mut typed = parse("notes type:file");
+        typed.narrow(&Filters::default());
+        assert_eq!(typed.kind, Kind::File);
+    }
+
+    #[test]
+    fn filters_arrive_from_the_frontend_in_camel_case() {
+        let filters: Filters = serde_json::from_str(
+            r#"{"kind":"file","tags":["work"],"modifiedFrom":10,"modifiedTo":null}"#,
+        )
+        .unwrap();
+        assert_eq!(filters.kind, Kind::File);
+        assert_eq!(filters.tags, ["work"]);
+        assert_eq!(filters.modified(), dated::Range::new(Some(10), None));
+        let empty: Filters = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty, Filters::default());
+        assert_eq!(empty.modified(), None);
     }
 
     #[test]

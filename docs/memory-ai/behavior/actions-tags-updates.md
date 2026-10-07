@@ -5,10 +5,10 @@ order: 2
 purpose: What the right-click actions, file details, folder tags and the auto-update flow do, and the rules behind each.
 status: active
 updated: 2026-10-07
-source: src-tauri/src/model/launch.rs, src-tauri/src/model/win32.rs, src-tauri/src/model/details.rs, src-tauri/src/model/tags.rs, src-tauri/src/model/find.rs, src-tauri/src/model/db.rs, src-tauri/src/tray.rs, src/presenter/menuPresenter.ts, src/presenter/tagPresenter.ts, src/presenter/updatePresenter.ts, src/presenter/searchPresenter.ts, src/model/updater.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx
+source: src-tauri/src/model/launch.rs, src-tauri/src/model/win32.rs, src-tauri/src/model/details.rs, src-tauri/src/model/tags.rs, src-tauri/src/model/find.rs, src/view/TagEditor.tsx, src/view/TagSettings.tsx, src-tauri/src/model/db.rs, src-tauri/src/tray.rs, src/presenter/menuPresenter.ts, src/presenter/tagPresenter.ts, src/presenter/updatePresenter.ts, src/presenter/searchPresenter.ts, src/model/updater.ts, src/view/blockWebMenu.ts, src/view/SearchView.tsx
 confidence: confirmed
 verified_at: 2026-10-07
-keywords: context menu, open_claude, open_terminal, create_process, de-elevate, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, wt.exe, details, SHGetFileInfoW, folder_tag, tag:, updater, save_index, check-updates, blockWebMenu
+keywords: context menu, tag catalog, colour tags, preset, create_tag, delete_tag, open_claude, open_terminal, create_process, de-elevate, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, wt.exe, details, SHGetFileInfoW, folder_tag, tag:, updater, save_index, check-updates, blockWebMenu
 ---
 
 # Actions, Tags and Updates
@@ -58,6 +58,21 @@ keywords: context menu, open_claude, open_terminal, create_process, de-elevate, 
   every tag, skips missing ones, ranks by name (`rank_name`), then by name.
 - **UI:** chips on rows (from `describe_paths`), the editor saves each change at once,
   the empty screen lists tags with counts.
+
+## Tag catalog (2026-10-07, `feat/ui-redesign-filters`)
+
+- **Two kinds:** seven colour presets (red, orange, yellow, green, blue, purple, gray;
+  cannot be deleted, drawn as dots with light/dark system colours from
+  `--tag-<colour>`) and custom tags.
+- **Where custom tags come from:** Settings → Tags (`create_tag`, refusing an existing
+  name), or a new name typed in the tag editor (`tags::add` registers it).
+- **Deleting** (`tags::delete`, one transaction): removes the tag from `folder_tag` and
+  `tag`; the UI asks first ("Delete #fw? It comes off 1 folder."). A filter on a deleted
+  tag is dropped (`keepKnown`).
+- **Tag editor:** colour presets as a row of toggle dots; custom tags as chips; custom
+  suggestions only.
+- **Checked over CDP (2026-10-07):** create, duplicate refused, tag Red + #fw, filter
+  by Red, delete #fw, preset delete refused, catalog kept across a restart.
 
 ## Auto update (`updatePresenter`, `model/updater.ts`)
 

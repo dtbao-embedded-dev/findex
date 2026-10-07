@@ -87,11 +87,63 @@
   remove one; tags already in use are offered with one press.
   - **Finding them:** `tag:work` lists the folders tagged `work`, on any drive, and
     combines with name words (`proj tag:work`) and several tags (`tag:work;fw`).
-  - **Where they show:** as chips beside a folder's name in the results, and on the
-    empty search screen with how many folders carry each; pressing one searches it.
+  - **Where they show:** as chips beside a folder's name in the results, and in the
+    sidebar with how many folders carry each; pressing one filters by it.
   - **What a tag is:** one word of up to 32 letters, digits, `-` or `_`, stored in
     lower case. Tags are saved in the app's database, keyed by the folder's path, so a
     folder that is renamed or moved loses its tags.
+- Tags come in two kinds, as in Finder:
+  - **Colour tags:** Red, Orange, Yellow, Green, Blue, Purple and Gray are always
+    there, drawn as coloured dots in the sidebar, the filters, the tag editor and on
+    results, and cannot be deleted. The tag editor offers them as a row of dots to
+    toggle.
+  - **Your own tags:** made in Settings → Tags, or by typing a new name in the tag
+    editor. Settings lists them with their folder counts; deleting one asks first and
+    takes it off every folder. A tag that already exists is refused rather than
+    merged.
+  - **Upgrading:** tags already on folders become your own tags; a folder tagged
+    `red` before keeps it, now as the Red colour tag.
+- A filter bar under the search field narrows the results. Every change searches
+  again at once.
+  - **Date:** when a result last changed: Today, Yesterday, Last 7 days, Last 30
+    days, This month, This year, or a custom day, month, year or range (either end
+    may be left open). Days follow your local time.
+  - **Kind:** All, Files or Folders, overriding a typed `type:`.
+  - **Tags:** folders carrying every tag picked, from the filter's menu or the
+    sidebar; a tag chip on a result turns its filter on or off.
+  - **How dates are read:** the index holds names only, so dates are read from the
+    disk for the best name matches, up to 20,000 to 100,000 of them depending on the
+    results limit. When that was not enough, the line above the results says to type
+    more of the name. A one-letter search checked against the last day took under a
+    second on 1.2 million names.
+  - **Without a name:** a date or kind alone lists nothing, since there is no name to
+    look for; a tag alone lists the folders carrying it.
+  - **Esc:** the first Esc clears the name, a second one clears the filters.
+  - **While files change:** a search with a date filter is not re-run on its own as
+    files change, since each run reads thousands of dates from the disk; typing or
+    changing a filter runs it again. Custom dates before 1970 are not accepted.
+- Settings (the gear in the title bar) open as a sheet over the window. The first
+  setting is **Results per search**, from 200 (the default) to 10,000, typed, slid or
+  picked from 200 / 1,000 / 5,000 / 10,000. It applies to the search on screen at
+  once and is kept across restarts.
+  - **Checked twice:** a value out of range is refused with a note and the saved one
+    kept; Rust checks it again, and falls back to 200 if a stored value is ever
+    out of range.
+  - **Cost:** more results take longer. In a development build a one-letter search
+    on 1.2 million names took about 0.4 s for 10,000 results against 0.07 s for 200.
+- The result list renders only the rows in view and reads type, size and date only
+  for them, so 10,000 results scroll as smoothly as 200. ↑ from the first result
+  still jumps to the last, and the menu key opens its actions there.
+- The line above the results shows how much memory the drive's name index holds,
+  beside the search time: "Top 200 results · 18 ms · 133 MB RAM". It counts what the
+  index's containers hold, so it is lower than the app's working set in Task Manager,
+  which also holds the window and the rest of the app (133 MB against 191 MB for
+  1.2 million names here).
+- A re-scan button (the circular arrow in the title bar) reads the active drive again
+  from scratch, for when its index looks out of date. An NTFS drive is read from its
+  file table again instead of being caught up from its journal. The previous results
+  stay searchable until the new index replaces them; the button turns and waits
+  while any indexing runs, and the status bar shows the progress.
 - Findex updates itself. It checks for a newer signed release 10 seconds after it
   opens and every six hours, downloads it in the background, then offers "Restart
   now" or "Later" in a card above the status bar. "Later" keeps the download and
@@ -105,6 +157,20 @@
 
 ### Changed
 
+- The main window is redesigned after Finder: a sidebar on the left holds the drive
+  (with its free space) and the tags in use with their folder counts, and the search
+  sits on the right. Pressing a tag in the sidebar filters by it, in place of the
+  chips the empty screen showed before.
+  - **Results:** one fixed-height row per result, and the selected row is filled with
+    the accent colour so it is found at a glance.
+  - **Chrome:** title bar, sidebar and status bar share one translucent material, and
+    menus, the tag editor and the update card float on a solid surface above them.
+  - **Dark mode, reduced motion, reduced transparency and more contrast** are all
+    followed, and the splash window picks up the same look.
+  - **Corners:** every panel, field, button, chip and row has the same 5 px corner
+    radius; only the colour dots and the status dot stay round.
+- The title bar shows the app icon, the name and the running version (for example
+  `Findex v0.1.0`), so which build is open is visible without the tray.
 - The app is now named **Findex** in its window, title bar, tray tooltip, installer and
   release titles. The package, crate, bundle id (`com.dtbao.findex`) and repository stay
   lowercase, so installed copies and update URLs are unaffected.

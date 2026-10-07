@@ -1,9 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Hit } from "../model/search";
-import type { TagCount } from "../model/tags";
+import type { TagInfo } from "../model/tags";
 import { placeMenu } from "../presenter/menuPresenter";
-import { addTagTo, loadTags, removeTagFrom, suggestTags } from "../presenter/tagPresenter";
+import {
+  addTagTo,
+  removeTagFrom,
+  suggestTags,
+  tagColors,
+  tagLabel,
+} from "../presenter/tagPresenter";
+import { TagMark } from "./TagMark";
 import { useDismiss } from "./useDismiss";
 
 type Props = {
@@ -11,21 +18,24 @@ type Props = {
   at: { x: number; y: number };
   folder: Hit;
   tags: string[];
+  /** Every tag that can be picked. */
+  catalog: TagInfo[];
   /** The folder's tags after each change. */
   onChange: (tags: string[]) => void;
   onClose: () => void;
 };
 
 /**
- * A small panel to tag one folder: its tags as chips to remove, a field to add one,
- * and the tags already in use as one-press suggestions. Each change is saved at once.
+ * A small panel to tag one folder: the colour tags as a row of dots to toggle, its
+ * custom tags as chips to remove, a field to add one (a new name becomes a custom
+ * tag), and the custom tags already made as one-press suggestions. Each change is
+ * saved at once.
  */
-export function TagEditor({ at, folder, tags, onChange, onClose }: Props) {
+export function TagEditor({ at, folder, tags, catalog, onChange, onClose }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [inUse, setInUse] = useState<TagCount[]>([]);
   const [place, setPlace] = useState({ left: at.x, top: at.y, origin: "top left" });
 
   useLayoutEffect(() => {
@@ -39,7 +49,6 @@ export function TagEditor({ at, folder, tags, onChange, onClose }: Props) {
 
   useEffect(() => {
     field.current?.focus();
-    void loadTags().then(setInUse);
   }, []);
 
   const apply = (edit: { tags: string[] | null; error: string | null }) => {
@@ -51,7 +60,10 @@ export function TagEditor({ at, folder, tags, onChange, onClose }: Props) {
     field.current?.focus();
   };
 
-  const suggestions = suggestTags(inUse, tags, text);
+  const colors = tagColors(catalog);
+  const presets = catalog.filter((t) => t.preset);
+  const custom = tags.filter((tag) => !(tag in colors));
+  const suggestions = suggestTags(catalog, tags, text);
 
   return (
     <div
@@ -64,9 +76,29 @@ export function TagEditor({ at, folder, tags, onChange, onClose }: Props) {
       <p className="tag-editor-title">
         Tags for <strong>{folder.name}</strong>
       </p>
+      <div className="tag-colors" role="group" aria-label="Colour tags">
+        {presets.map((t) => {
+          const on = tags.includes(t.tag);
+          return (
+            <button
+              key={t.tag}
+              type="button"
+              className="tag-color"
+              aria-pressed={on}
+              aria-label={tagLabel(t.tag, colors)}
+              title={tagLabel(t.tag, colors)}
+              onClick={() =>
+                void (on ? removeTagFrom(folder.path, t.tag) : addTagTo(folder.path, t.tag)).then(apply)
+              }
+            >
+              <span className="tag-dot" data-color={t.color ?? undefined} />
+            </button>
+          );
+        })}
+      </div>
       <div className="tag-row">
-        {tags.length === 0 && <span className="tag-none">No tags yet</span>}
-        {tags.map((tag) => (
+        {custom.length === 0 && <span className="tag-none">No tags of your own yet</span>}
+        {custom.map((tag) => (
           <span key={tag} className="tag-chip">
             #{tag}
             <button
@@ -103,7 +135,8 @@ export function TagEditor({ at, folder, tags, onChange, onClose }: Props) {
               className="tag-chip is-suggestion"
               onClick={() => void addTagTo(folder.path, tag).then(apply)}
             >
-              #{tag}
+              <TagMark tag={tag} colors={colors} />
+              {tag}
             </button>
           ))}
         </div>

@@ -52,12 +52,15 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             commands::get_setting,
             commands::set_setting,
+            commands::get_results_limit,
+            commands::set_results_limit,
             commands::app_about,
             commands::splash_ready,
             commands::list_drives,
             commands::get_active_drive,
             commands::set_active_drive,
             commands::index_status,
+            commands::rescan_drive,
             commands::save_index,
             commands::search_names,
             commands::describe_paths,
@@ -67,7 +70,9 @@ pub fn run() -> tauri::Result<()> {
             commands::open_claude,
             commands::add_tag,
             commands::remove_tag,
-            commands::list_tags
+            commands::tag_catalog,
+            commands::create_tag,
+            commands::delete_tag
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {
