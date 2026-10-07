@@ -4,39 +4,46 @@
  * heavier one for the window chrome, which is structure), instant press feedback,
  * critically damped motion, and the three accessibility preferences (reduced
  * motion, reduced transparency, more contrast).
+ *
+ * Dark only (user, 2026-10-07). Graphite, below, is the default theme; the others
+ * override the surfaces and the accent under `[data-theme]`, set on <html> from
+ * Settings > Appearance, or on a settings swatch to preview one theme inside it
+ * (which is why Graphite is named too: a swatch must not inherit the theme on).
  */
-:root {
-  color-scheme: light dark;
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --raised: #ffffff;
+:root,
+[data-theme="graphite"] {
+  color-scheme: dark;
+  --bg: #1c1c1e;
+  --surface: #1c1c1e;
+  --raised: #2c2c2e;
   /* The chosen segment of a segmented control: lifted above its track. */
-  --segment: #ffffff;
-  --fg: #1d1d1f;
-  --muted: #6e6e73;
-  --tertiary: #aeaeb2;
-  --hairline: rgb(0 0 0 / 0.1);
-  --fill: rgb(118 118 128 / 0.12);
-  --fill-strong: rgb(118 118 128 / 0.2);
-  --accent: #0071e3;
-  --accent-soft: rgb(0 113 227 / 0.12);
+  --segment: #636366;
+  --fg: #f5f5f7;
+  --muted: #98989d;
+  --tertiary: #636366;
+  --hairline: rgb(255 255 255 / 0.12);
+  --fill: rgb(118 118 128 / 0.24);
+  --fill-strong: rgb(118 118 128 / 0.36);
+  --accent: #0a84ff;
+  --accent-soft: rgb(10 132 255 / 0.2);
+  /* Text on an accent fill: white, or near black on a light accent. */
   --on-accent: #ffffff;
-  --danger: #d70015;
-  --success: #248a3d;
-  --folder: #3d8ef7;
-  --material: rgb(246 246 248 / 0.78);
-  --chrome: rgb(232 232 237 / 0.82);
-  --scrim: rgb(0 0 0 / 0.18);
-  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.08), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.06);
-  --shadow-float: 0 1rem 2.5rem rgb(0 0 0 / 0.18), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.08);
-  /* The colour tags, in Apple's system colours. */
-  --tag-red: #ff3b30;
-  --tag-orange: #ff9500;
-  --tag-yellow: #ffcc00;
-  --tag-green: #34c759;
-  --tag-blue: #007aff;
-  --tag-purple: #af52de;
-  --tag-gray: #8e8e93;
+  --danger: #ff453a;
+  --success: #30d158;
+  --folder: #409cff;
+  --material: rgb(36 36 38 / 0.78);
+  --chrome: rgb(28 28 30 / 0.86);
+  --scrim: rgb(0 0 0 / 0.4);
+  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.4), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.3);
+  --shadow-float: 0 1rem 2.5rem rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+  /* The colour tags, in Apple's dark system colours. */
+  --tag-red: #ff453a;
+  --tag-orange: #ff9f0a;
+  --tag-yellow: #ffd60a;
+  --tag-green: #30d158;
+  --tag-blue: #0a84ff;
+  --tag-purple: #bf5af2;
+  --tag-gray: #98989d;
   /* One corner radius everywhere (user, 2026-10-07); circles stay circles. */
   --radius-lg: 5px;
   --radius: 5px;
@@ -52,40 +59,105 @@
   color: var(--fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1c1c1e;
-    --surface: #1c1c1e;
-    --raised: #2c2c2e;
-    --segment: #636366;
-    --fg: #f5f5f7;
-    --muted: #98989d;
-    --tertiary: #636366;
-    --hairline: rgb(255 255 255 / 0.12);
-    --fill: rgb(118 118 128 / 0.24);
-    --fill-strong: rgb(118 118 128 / 0.36);
-    --accent: #0a84ff;
-    --accent-soft: rgb(10 132 255 / 0.2);
-    --danger: #ff453a;
-    --success: #30d158;
-    --folder: #409cff;
-    --material: rgb(36 36 38 / 0.78);
-    --chrome: rgb(28 28 30 / 0.86);
-    --scrim: rgb(0 0 0 / 0.4);
-    --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.4), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.3);
-    --shadow-float: 0 1rem 2.5rem rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
-    --tag-red: #ff453a;
-    --tag-orange: #ff9f0a;
-    --tag-yellow: #ffd60a;
-    --tag-green: #30d158;
-    --tag-blue: #0a84ff;
-    --tag-purple: #bf5af2;
-    --tag-gray: #98989d;
-  }
+/* Midnight: deep navy surfaces, a soft blue accent. */
+[data-theme="midnight"] {
+  --bg: #0f1420;
+  --surface: #0f1420;
+  --raised: #1a2133;
+  --segment: #3a4560;
+  --muted: #8d97ad;
+  --tertiary: #525d75;
+  --hairline: rgb(160 180 255 / 0.12);
+  --fill: rgb(120 140 180 / 0.18);
+  --fill-strong: rgb(120 140 180 / 0.3);
+  --accent: #4c8dff;
+  --accent-soft: rgb(76 141 255 / 0.2);
+  --on-accent: #ffffff;
+  --folder: #6ea8ff;
+  --material: rgb(22 28 44 / 0.8);
+  --chrome: rgb(14 19 31 / 0.86);
 }
 
+/* Aurora: blue-grey surfaces, a teal accent. */
+[data-theme="aurora"] {
+  --bg: #10191b;
+  --surface: #10191b;
+  --raised: #1b2729;
+  --segment: #3d5357;
+  --muted: #8fa3a3;
+  --tertiary: #4f6466;
+  --hairline: rgb(170 255 245 / 0.1);
+  --fill: rgb(120 160 160 / 0.16);
+  --fill-strong: rgb(120 160 160 / 0.28);
+  --accent: #2ec4b6;
+  --accent-soft: rgb(46 196 182 / 0.2);
+  --on-accent: #06201d;
+  --folder: #4fd1c5;
+  --material: rgb(24 36 38 / 0.8);
+  --chrome: rgb(15 24 26 / 0.86);
+}
+
+/* Violet: plum surfaces, a purple accent. */
+[data-theme="violet"] {
+  --bg: #17131f;
+  --surface: #17131f;
+  --raised: #241d31;
+  --segment: #4b3f63;
+  --muted: #a097b0;
+  --tertiary: #5e5470;
+  --hairline: rgb(220 190 255 / 0.1);
+  --fill: rgb(150 130 180 / 0.18);
+  --fill-strong: rgb(150 130 180 / 0.3);
+  --accent: #b05cf0;
+  --accent-soft: rgb(176 92 240 / 0.2);
+  --on-accent: #ffffff;
+  --folder: #c77dff;
+  --material: rgb(34 28 46 / 0.8);
+  --chrome: rgb(22 18 30 / 0.86);
+}
+
+/* Forest: green-black surfaces, a green accent. */
+[data-theme="forest"] {
+  --bg: #121812;
+  --surface: #121812;
+  --raised: #1c251d;
+  --segment: #3f5242;
+  --muted: #93a394;
+  --tertiary: #526253;
+  --hairline: rgb(200 255 200 / 0.09);
+  --fill: rgb(130 160 130 / 0.16);
+  --fill-strong: rgb(130 160 130 / 0.28);
+  --accent: #30d158;
+  --accent-soft: rgb(48 209 88 / 0.18);
+  --on-accent: #06200e;
+  --folder: #5ad27a;
+  --material: rgb(26 35 27 / 0.8);
+  --chrome: rgb(17 23 17 / 0.86);
+}
+
+/* Ember: warm brown-black surfaces, an amber accent. */
+[data-theme="ember"] {
+  --bg: #1a1512;
+  --surface: #1a1512;
+  --raised: #28201b;
+  --segment: #574538;
+  --muted: #a89a8e;
+  --tertiary: #645649;
+  --hairline: rgb(255 220 190 / 0.09);
+  --fill: rgb(170 140 120 / 0.16);
+  --fill-strong: rgb(170 140 120 / 0.28);
+  --accent: #ff9f0a;
+  --accent-soft: rgb(255 159 10 / 0.18);
+  --on-accent: #231400;
+  --folder: #ffb340;
+  --material: rgb(38 31 26 / 0.8);
+  --chrome: rgb(25 20 17 / 0.86);
+}
+
+/* After the themes, so these preferences win over any theme. */
 @media (prefers-contrast: more) {
-  :root {
+  :root,
+  [data-theme] {
     --muted: var(--fg);
     --tertiary: var(--fg);
     --hairline: currentColor;
@@ -93,7 +165,8 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root {
+  :root,
+  [data-theme] {
     --material: var(--raised);
     --chrome: var(--raised);
   }
@@ -1093,7 +1166,7 @@ button:focus-visible {
 
 .is-selected .result-path,
 .is-selected .result-meta {
-  color: rgb(255 255 255 / 0.82);
+  color: color-mix(in srgb, var(--on-accent) 82%, transparent);
 }
 
 /* A file found by its contents: the line number, then the line with the words in
@@ -1105,7 +1178,7 @@ button:focus-visible {
 }
 
 .is-selected .result-path.is-snippet mark {
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .result-line-no {
@@ -1226,7 +1299,7 @@ kbd {
 
 .is-selected .tag-chip.is-small {
   color: var(--on-accent);
-  background: rgb(255 255 255 / 0.22);
+  background: color-mix(in srgb, var(--on-accent) 22%, transparent);
 }
 
 .tag-chip.is-suggestion {
@@ -1489,6 +1562,83 @@ button.tag-color:active {
 .setting-label {
   font-size: 0.875rem;
   font-weight: 500;
+}
+
+/* Theme swatches: a miniature window in each theme's own colours, its accent as a
+   dot; the chosen one is ringed in the current accent. */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.375rem;
+  padding: 0;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: transparent;
+}
+
+.theme-swatch {
+  position: relative;
+  display: block;
+  height: 3.5rem;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  transition: box-shadow 200ms var(--ease);
+}
+
+.theme-swatch-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0.75rem;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.theme-swatch-row {
+  position: absolute;
+  top: 1.375rem;
+  right: 0.625rem;
+  left: 0.625rem;
+  height: 0.875rem;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.theme-swatch-dot {
+  position: absolute;
+  right: 0.625rem;
+  bottom: 0.4375rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--folder);
+  border-radius: 50%;
+}
+
+.theme-option[aria-checked="true"] .theme-swatch {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent);
+}
+
+.theme-option:hover .theme-swatch {
+  border-color: var(--tertiary);
+}
+
+.theme-name {
+  text-align: center;
+}
+
+.theme-option[aria-checked="true"] .theme-name {
+  color: var(--accent);
 }
 
 /* An on/off switch, as in System Settings: the knob slides, the track fills with

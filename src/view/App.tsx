@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
 import { menuTagsKey, syncMenu } from "../presenter/explorerPresenter";
+import { DEFAULT_THEME, loadTheme, saveTheme, type ThemeId } from "../presenter/themePresenter";
 import { loadActive } from "../presenter/drivePresenter";
 import type { TagInfo } from "../model/tags";
 import { revealMain } from "../presenter/splashPresenter";
@@ -14,6 +15,7 @@ import {
   type UpdateState,
 } from "../presenter/updatePresenter";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { ExplorerSettings } from "./ExplorerSettings";
 import { SearchView } from "./SearchView";
 import { SettingsSheet } from "./SettingsSheet";
@@ -33,6 +35,8 @@ export function App() {
   const [title, setTitle] = useState(initialTitle);
   const [active, setActive] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The colour theme, set on <html> so every surface and the settings follow it.
+  const [theme, setTheme] = useState<ThemeId>(DEFAULT_THEME);
   // Why a re-scan could not start; it fades like any other note.
   const [rescanError, setRescanError] = useState<string | null>(null);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
@@ -54,7 +58,9 @@ export function App() {
   useEffect(() => {
     void loadTitle().then(setTitle);
     refreshTags();
-    void revealMain(loadActive().then(setActive));
+    // The window is shown once the drive and the theme are known, so it never
+    // appears in the wrong colours first.
+    void revealMain(Promise.all([loadActive().then(setActive), loadTheme().then(setTheme)]));
     const stop = watchStatus(setStatus);
     // A folder tagged from Explorer's menu shows its tag here without a restart.
     const stopTags = watchTags(setTags);
@@ -63,6 +69,10 @@ export function App() {
       void stopTags.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => {
     if (rescanError === null) {
@@ -109,6 +119,13 @@ export function App() {
       {rescanError !== null && <Toast text={rescanError} tone="error" />}
       {settingsOpen && (
         <SettingsSheet onClose={closeSettings}>
+          <AppearanceSettings
+            theme={theme}
+            onTheme={(next) => {
+              setTheme(next);
+              void saveTheme(next);
+            }}
+          />
           <TagSettings catalog={tags} onCatalog={setTags} />
           <ExplorerSettings />
         </SettingsSheet>

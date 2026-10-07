@@ -261,6 +261,12 @@
   with the drive's name and free space on hover, and the re-scan button moved from the
   title bar to the right of the field. Tags are still filtered from the **Tags** menu
   in the filter bar and from the tag chips on results.
+- Findex is now **dark only**, whatever Windows' light or dark setting, and
+  **Settings → Appearance** offers six themes: Graphite (the dark look so far, and
+  the default), Midnight, Aurora, Violet, Forest and Ember. Each swatch previews its
+  theme; picking one applies it at once, is remembered, and is worn by the splash
+  window too. On the lighter accents (Aurora, Forest, Ember) the selected row's text
+  turns near black so it stays readable.
 - Building now also builds `findex-tag`, a small helper crate in `src-tauri/tag-helper`
   (a Cargo workspace member). `pnpm tauri dev` builds it in debug beside the app;
   `pnpm tauri build` runs `docs/scripts/build-helper.py` (Python), which builds it in
