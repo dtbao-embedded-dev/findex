@@ -98,7 +98,10 @@ pub fn all(db: &Db) -> AppResult<Vec<TagCount>> {
 
 /// The folders that carry every one of `tags`.
 pub fn folders_with(db: &Db, tags: &[String]) -> AppResult<Vec<String>> {
-    let tags: Vec<String> = tags.iter().map(|t| t.to_lowercase()).collect();
+    // Each tag once: the count below must reach the number of distinct tags.
+    let mut tags: Vec<String> = tags.iter().map(|t| t.to_lowercase()).collect();
+    tags.sort();
+    tags.dedup();
     if tags.is_empty() {
         return Ok(Vec::new());
     }
@@ -231,8 +234,13 @@ mod tests {
         assert_eq!(both, expected);
         assert_eq!(
             folders_with(&db, &["work".into(), "FW".into()]).unwrap(),
-            [a]
+            std::slice::from_ref(&a)
         );
         assert!(folders_with(&db, &["none".into()]).unwrap().is_empty());
+        // A tag named twice still means that one tag.
+        assert_eq!(
+            folders_with(&db, &["fw".into(), "FW".into(), "fw".into()]).unwrap(),
+            std::slice::from_ref(&a)
+        );
     }
 }
