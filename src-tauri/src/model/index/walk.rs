@@ -24,12 +24,15 @@ struct Entry {
     is_dir: bool,
 }
 
+/// What a walk reports to and asks of its caller, shared by every folder task.
+pub struct Hooks<'a> {
+    pub progress: &'a (dyn Fn(usize) + Sync),
+    /// Checked before each folder; false ends the walk with `superseded`.
+    pub keep_going: &'a (dyn Fn() -> bool + Sync),
+}
+
 /// Walks everything under `root`; paths in the index start with `display_root`.
-pub fn build(
-    root: &Path,
-    display_root: &str,
-    progress: &(dyn Fn(usize) + Sync),
-) -> AppResult<VolumeIndex> {
+pub fn build(root: &Path, display_root: &str, hooks: &Hooks<'_>) -> AppResult<VolumeIndex> {
     // A missing or unreadable root is an error; unreadable folders below it are not.
     std::fs::read_dir(root)?;
     // Its own threads: a walk keeps every worker busy for its whole length, and on
@@ -42,7 +45,10 @@ pub fn build(
         .map_err(|err| AppError::Invalid(format!("could not start the folder scan: {err}")))?;
     let next = AtomicU64::new(WALK_ROOT + 1);
     let seen = AtomicUsize::new(0);
-    let entries = pool.install(|| walk_dir(root.to_path_buf(), WALK_ROOT, &next, &seen, progress));
+    let entries = pool.install(|| walk_dir(root.to_path_buf(), WALK_ROOT, &next, &seen, hooks));
+    if !(hooks.keep_going)() {
+        return Err(super::superseded());
+    }
     let mut index = VolumeIndex::new(display_root, WALK_ROOT);
     index.reserve(entries.len(), entries.iter().map(|e| e.name.len()).sum());
     for entry in entries {
@@ -56,8 +62,11 @@ fn walk_dir(
     id: u64,
     next: &AtomicU64,
     seen: &AtomicUsize,
-    progress: &(dyn Fn(usize) + Sync),
+    hooks: &Hooks<'_>,
 ) -> Vec<Entry> {
+    if !(hooks.keep_going)() {
+        return Vec::new();
+    }
     let Ok(listing) = std::fs::read_dir(&path) else {
         // Access denied and folders deleted mid-walk are skipped, not fatal.
         return Vec::new();
@@ -83,11 +92,11 @@ fn walk_dir(
     }
     let before = seen.fetch_add(entries.len(), Ordering::Relaxed);
     if (before + entries.len()) / PROGRESS_EVERY > before / PROGRESS_EVERY {
-        progress(before + entries.len());
+        (hooks.progress)(before + entries.len());
     }
     let nested: Vec<Vec<Entry>> = folders
         .into_par_iter()
-        .map(|(folder, child)| walk_dir(folder, child, next, seen, progress))
+        .map(|(folder, child)| walk_dir(folder, child, next, seen, hooks))
         .collect();
     entries.extend(nested.into_iter().flatten());
     entries
@@ -100,6 +109,24 @@ mod tests {
 
     use super::*;
     use crate::model::search;
+
+    const QUIET: Hooks<'static> = Hooks {
+        progress: &|_| {},
+        keep_going: &|| true,
+    };
+
+    #[test]
+    fn a_superseded_walk_stops_with_an_error() {
+        let temp = tree("stopped");
+        let hooks = Hooks {
+            progress: &|_| {},
+            keep_going: &|| false,
+        };
+        assert!(matches!(
+            build(&temp.0, "T:\\", &hooks),
+            Err(AppError::Invalid(_))
+        ));
+    }
 
     /// A temp folder removed when the test ends, pass or fail.
     struct TempTree(PathBuf);
@@ -123,7 +150,7 @@ mod tests {
     #[test]
     fn indexes_every_entry_with_full_paths() {
         let temp = tree("paths");
-        let index = build(&temp.0, "T:\\", &|_| {}).unwrap();
+        let index = build(&temp.0, "T:\\", &QUIET).unwrap();
         assert_eq!(index.len(), 5);
         let hits = search::run(&[index], &search::parse("uart"), 10, &|| false).unwrap();
         assert_eq!(hits[0].path, "T:\\docs\\specs\\uart.md");
@@ -141,7 +168,7 @@ mod tests {
             .output()
             .unwrap();
         assert!(made.status.success(), "mklink failed: {made:?}");
-        let index = build(&temp.0, "T:\\", &|_| {}).unwrap();
+        let index = build(&temp.0, "T:\\", &QUIET).unwrap();
         assert_eq!(index.len(), 6);
         let hits = search::run(&[index], &search::parse("loop"), 10, &|| false).unwrap();
         assert_eq!(hits.len(), 1);
@@ -151,6 +178,6 @@ mod tests {
     #[test]
     fn a_missing_root_is_an_error() {
         let missing = std::env::temp_dir().join("findex-walk-missing-root-does-not-exist");
-        assert!(build(&missing, "T:\\", &|_| {}).is_err());
+        assert!(build(&missing, "T:\\", &QUIET).is_err());
     }
 }

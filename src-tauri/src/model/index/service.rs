@@ -71,6 +71,8 @@ pub struct IndexService {
     positions: Mutex<HashMap<char, Journal>>,
     /// Drives changed by live updates since their snapshot was last saved.
     dirty: Mutex<HashSet<char>>,
+    /// Held while a snapshot is written.
+    saving: Mutex<()>,
 }
 
 /// Live updates send status at most this often, so a busy disk does not flood the UI.
@@ -215,6 +217,11 @@ impl IndexService {
         let mut on_batch = |records: &[win32::UsnRecord], position: Journal| -> AppResult<()> {
             let (changed, entries) = {
                 let mut volumes = self.write_volumes();
+                // Checked under the lock that `start` and `install` also take, so a
+                // superseded watcher never touches the index the new run installed.
+                if !self.is_current(run) {
+                    return Err(super::superseded());
+                }
                 match volumes.iter_mut().find(|v| root_letter(v) == letter) {
                     Some(index) => {
                         let changed = watch::apply(index, records)?;
@@ -259,22 +266,29 @@ impl IndexService {
             d.entries = 0;
         });
         let progress = |entries: usize| self.update(run, letter, emit, |d| d.entries = entries);
+        let keep_going = || self.is_current(run);
+        let hooks = walk::Hooks {
+            progress: &progress,
+            keep_going: &keep_going,
+        };
         let built = match method {
-            Method::Mft => match mft::build(letter, &mut |n| progress(n)) {
+            Method::Mft => match mft::build(letter, &mut |n| progress(n), &keep_going) {
                 Ok(built) => Ok((built.index, built.journal, Method::Mft, None)),
                 Err(err) => {
                     let note = format!("Folder scan: the file table could not be read ({err})");
-                    walk_drive(letter, &progress)
-                        .map(|index| (index, None, Method::Walk, Some(note)))
+                    walk_drive(letter, &hooks).map(|index| (index, None, Method::Walk, Some(note)))
                 }
             },
             Method::Walk => {
-                walk_drive(letter, &progress).map(|index| (index, None, Method::Walk, None))
+                walk_drive(letter, &hooks).map(|index| (index, None, Method::Walk, None))
             }
         };
         match built {
             Ok((index, journal, used, note)) => {
                 let entries = index.len();
+                if !self.is_current(run) {
+                    return None;
+                }
                 // Saved before it is installed, while no lock is held: saving under the
                 // read lock would queue the next install, and every search behind it.
                 self.save_snapshot(&index, journal);
@@ -304,6 +318,19 @@ impl IndexService {
     /// position it is current to, if it has one. A missing snapshot is the normal
     /// first run; a damaged one is ignored and rebuilt.
     fn load_snapshot(&self, run: u64, letter: char, emit: &Emit) -> Option<Journal> {
+        // Restarting with this drive still chosen: the index in memory is newer than
+        // its snapshot (live updates since the last save), so keep it and its position.
+        let installed = self
+            .volumes
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .find(|v| root_letter(v) == letter)
+            .map(VolumeIndex::len);
+        if let Some(entries) = installed {
+            self.update(run, letter, emit, |d| d.searchable = entries);
+            return self.lock_positions().get(&letter).copied();
+        }
         let path = self.snapshot_path(letter)?;
         match snapshot::load(&path) {
             Ok(loaded) => {
@@ -344,6 +371,8 @@ impl IndexService {
         let Some(path) = self.snapshot_path(letter) else {
             return;
         };
+        // One save at a time: two writers of one drive would share its temp file.
+        let _saving = self.saving.lock().unwrap_or_else(PoisonError::into_inner);
         if let Err(err) = snapshot::save(&path, index, journal) {
             eprintln!("could not save the snapshot of {letter}: ({err})");
         }
@@ -403,9 +432,9 @@ impl IndexService {
     }
 }
 
-fn walk_drive(letter: char, progress: &(dyn Fn(usize) + Sync)) -> AppResult<VolumeIndex> {
+fn walk_drive(letter: char, hooks: &walk::Hooks<'_>) -> AppResult<VolumeIndex> {
     let root = format!("{letter}:\\");
-    walk::build(&PathBuf::from(&root), &root, progress)
+    walk::build(&PathBuf::from(&root), &root, hooks)
 }
 
 fn root_letter(index: &VolumeIndex) -> char {
@@ -481,6 +510,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].path, "Q:\\kept.txt");
+    }
+
+    #[test]
+    fn a_restart_keeps_the_newer_index_in_memory() {
+        let dir = std::env::temp_dir().join(format!("findex-restart-{}", std::process::id()));
+        let service = IndexService::with_snapshots(dir.clone());
+        service.save_snapshot(&volume('Q', &["old.txt"]), None);
+        service.install(0, volume('Q', &["new.txt"]));
+        service.load_snapshot(0, 'Q', &quiet());
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(service.search("new", 10).unwrap().len(), 1);
+        assert!(service.search("old", 10).unwrap().is_empty());
     }
 
     #[test]

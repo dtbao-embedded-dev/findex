@@ -184,11 +184,12 @@ impl UsnRecord {
 const ENUM_BUFFER: usize = 1 << 20;
 
 /// Calls `each` for every file and folder in the volume's file table, as of
-/// `high_usn`, in file-table order (a child can come before its parent).
+/// `high_usn`, in file-table order (a child can come before its parent). Stops early
+/// when `each` returns false.
 pub fn enum_mft(
     volume: &VolumeHandle,
     high_usn: i64,
-    mut each: impl FnMut(UsnRecord),
+    mut each: impl FnMut(UsnRecord) -> bool,
 ) -> io::Result<()> {
     let mut input = MFT_ENUM_DATA_V1 {
         StartFileReferenceNumber: 0,
@@ -211,9 +212,11 @@ pub fn enum_mft(
         }
         // The output starts with the reference number to continue from.
         input.StartFileReferenceNumber = read_u64(out, 0).unwrap_or(u64::MAX);
-        parse_usn_records(&out[8..filled])
-            .into_iter()
-            .for_each(&mut each);
+        for record in parse_usn_records(&out[8..filled]) {
+            if !each(record) {
+                return Ok(());
+            }
+        }
     }
 }
 
@@ -243,7 +246,13 @@ pub fn read_usn(
     };
     let out = as_bytes_mut(buffer);
     let filled = ioctl(volume, FSCTL_READ_USN_JOURNAL, &input, out)?;
-    let next_usn = read_u64(out, 0).map_or(start, |usn| usn as i64);
+    // Fewer than 8 bytes never happens on success; if it did, the buffer would still
+    // hold the previous call's position, so keep `start` instead.
+    let next_usn = if filled >= 8 {
+        read_u64(out, 0).map_or(start, |usn| usn as i64)
+    } else {
+        start
+    };
     let records = parse_usn_records(out.get(8..filled).unwrap_or_default());
     Ok(UsnBatch { next_usn, records })
 }

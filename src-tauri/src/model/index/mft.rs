@@ -27,8 +27,13 @@ pub struct Built {
     pub journal: Option<Journal>,
 }
 
-/// Reads every file and folder name on `letter`'s volume.
-pub fn build(letter: char, progress: &mut dyn FnMut(usize)) -> AppResult<Built> {
+/// Reads every file and folder name on `letter`'s volume. Stops with
+/// [`superseded`](super::superseded) as soon as `keep_going` turns false.
+pub fn build(
+    letter: char,
+    progress: &mut dyn FnMut(usize),
+    keep_going: &dyn Fn() -> bool,
+) -> AppResult<Built> {
     let volume = win32::open_volume(letter)?;
     let journal = win32::query_journal(&volume).ok();
     // Reading up to the journal's current position lets the watcher resume exactly
@@ -37,14 +42,21 @@ pub fn build(letter: char, progress: &mut dyn FnMut(usize)) -> AppResult<Built> 
     let mut index = VolumeIndex::new(format!("{letter}:\\"), ROOT_FRN);
     let mut failed = None;
     win32::enum_mft(&volume, high_usn, |record| {
-        if failed.is_some() || !is_user_entry(record.frn, record.parent) {
-            return;
+        if !is_user_entry(record.frn, record.parent) {
+            return true;
         }
         if let Err(err) = index.upsert(record.frn, record.parent, &record.name, record.is_dir()) {
             failed = Some(err);
-        } else if index.len() % PROGRESS_EVERY == 0 {
-            progress(index.len());
+            return false;
         }
+        if index.len() % PROGRESS_EVERY == 0 {
+            progress(index.len());
+            if !keep_going() {
+                failed = Some(super::superseded());
+                return false;
+            }
+        }
+        true
     })?;
     match failed {
         Some(err) => Err(err),
@@ -83,7 +95,7 @@ mod tests {
     #[ignore]
     fn mft_enumerates_system_volume() {
         let start = Instant::now();
-        let built = build('C', &mut |_| {}).unwrap();
+        let built = build('C', &mut |_| {}, &|| true).unwrap();
         let took = start.elapsed();
         let count = built.index.len();
         println!(
