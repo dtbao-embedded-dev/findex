@@ -1935,6 +1935,20 @@ button.tag-color:active {
   max-width: 50%;
 }
 
+/* The copyright closes the line: right-aligned, after any note, a step quieter. */
+.status-copyright {
+  flex: none;
+  margin-left: auto;
+  color: var(--tertiary);
+  white-space: nowrap;
+}
+
+.status-note + .status-copyright {
+  margin-left: 0;
+  padding-left: 0.625rem;
+  border-left: 1px solid var(--hairline);
+}
+
 @keyframes breathe {
   from {
     opacity: 0.35;

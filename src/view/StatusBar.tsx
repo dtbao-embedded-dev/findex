@@ -1,7 +1,10 @@
 import type { StatusLine } from "../presenter/statusPresenter";
 
-/** The index state, one quiet line at the bottom; notes show in full on hover. */
-export function StatusBar({ line }: { line: StatusLine }) {
+/**
+ * The index state, one quiet line at the bottom; notes show in full on hover. The
+ * copyright closes the line at the right.
+ */
+export function StatusBar({ line, copyright }: { line: StatusLine; copyright: string }) {
   return (
     <footer className="statusbar" role="status">
       <span className={line.busy ? "status-dot is-busy" : "status-dot"} aria-hidden="true" />
@@ -11,6 +14,7 @@ export function StatusBar({ line }: { line: StatusLine }) {
           {line.notes[0]}
         </span>
       )}
+      {copyright !== "" && <span className="status-copyright">{copyright}</span>}
     </footer>
   );
 }

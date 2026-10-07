@@ -117,7 +117,7 @@ export function App() {
         onRestart={() => void updater.restart()}
         onLater={updater.later}
       />
-      <StatusBar line={status} />
+      <StatusBar line={status} copyright={title.copyright} />
       {rescanError !== null && <Toast text={rescanError} tone="error" />}
       {settingsOpen && (
         <SettingsSheet onClose={closeSettings}>

@@ -272,6 +272,8 @@
   just as the tray's "Check for updates" does. Once an update is downloaded it
   carries an accent dot, kept even after **Later**, and pressing it offers the
   restart again.
+- The status bar ends with the copyright (`© 2026 dtbao`), read from
+  `bundle.copyright` like the splash window's, so it changes in one place.
 - Building now also builds `findex-tag`, a small helper crate in `src-tauri/tag-helper`
   (a Cargo workspace member). `pnpm tauri dev` builds it in debug beside the app;
   `pnpm tauri build` runs `docs/scripts/build-helper.py` (Python), which builds it in
