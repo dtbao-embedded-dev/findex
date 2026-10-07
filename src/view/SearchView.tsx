@@ -46,6 +46,15 @@ export function SearchView({ total, onOpenDrives }: Props) {
     });
   };
 
+  // A drive finishing (or its snapshot loading) changes what can be found: answer
+  // the query on screen again instead of leaving a stale "No matches".
+  useEffect(() => {
+    if (state.query.trim() !== "") {
+      run(state.query);
+    }
+    // Only a change in the searchable count re-runs here; typing runs on its own.
+  }, [total]);
+
   const reveal = (index: number) => {
     const hit = state.hits[index];
     if (hit) {
