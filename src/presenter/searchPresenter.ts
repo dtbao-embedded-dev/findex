@@ -1,6 +1,7 @@
 import { describePaths, type Details } from "../model/details";
 import { revealPath, searchNames, type Answer, type Filters, type Hit } from "../model/search";
 import { formatBytes } from "./drivePresenter";
+import { RESULTS_DEFAULT } from "./settingsPresenter";
 
 /** What the search screen shows. */
 export type SearchState = {
@@ -34,6 +35,23 @@ const CLEARED: SearchUpdate = { hits: [], selected: 0, error: null, tookMs: null
  */
 export function canSearch(query: string, filters: { tags: string[] }): boolean {
   return query.trim() !== "" || filters.tags.length > 0;
+}
+
+/**
+ * What the results area shows: the list (also while the first answer is on its way),
+ * the error, the empty screen when there is nothing to search for, or "no matches".
+ */
+export function resultsView(
+  state: Pick<SearchState, "query" | "hits" | "error" | "tookMs">,
+  filters: { tags: string[] },
+): "list" | "error" | "empty" | "none" {
+  if (state.error !== null) {
+    return "error";
+  }
+  if (!canSearch(state.query, filters)) {
+    return "empty";
+  }
+  return state.hits.length === 0 && state.tookMs !== null ? "none" : "list";
 }
 
 /**
@@ -76,16 +94,20 @@ export function latestOnly(
   };
 }
 
-/** Rust's default result limit; a full page means there are more matches. */
-export const RESULT_LIMIT = 200;
-
 /**
- * The line above the results: how many, and how fast. When a date was checked on
- * only the best name matches, it says how to see more.
+ * The line above the results: how many, and how fast. A full page (`limit` results)
+ * means there are more matches. When a date was checked on only the best name
+ * matches, it says how to see more.
  */
-export function describeResults(count: number, tookMs: number, partial = false): string {
+export function describeResults(
+  count: number,
+  tookMs: number,
+  { partial = false, limit = RESULTS_DEFAULT }: { partial?: boolean; limit?: number } = {},
+): string {
   const amount =
-    count >= RESULT_LIMIT ? `Top ${RESULT_LIMIT} results` : `${count} result${count === 1 ? "" : "s"}`;
+    count >= limit
+      ? `Top ${limit.toLocaleString("en-US")} results`
+      : `${count.toLocaleString("en-US")} result${count === 1 ? "" : "s"}`;
   const more = partial ? " · type more of the name to find older matches" : "";
   return `${amount} · ${Math.max(1, Math.round(tookMs))} ms${more}`;
 }

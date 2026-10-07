@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
 import { loadActive } from "../presenter/drivePresenter";
+import { loadLimit, RESULTS_DEFAULT } from "../presenter/settingsPresenter";
 import { revealMain } from "../presenter/splashPresenter";
 import { summarize, watchStatus } from "../presenter/statusPresenter";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../presenter/updatePresenter";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
 import { SearchView } from "./SearchView";
+import { SettingsSheet } from "./SettingsSheet";
 import { StatusBar } from "./StatusBar";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
@@ -25,12 +27,16 @@ import { UpdateBanner } from "./UpdateBanner";
 export function App() {
   const [title, setTitle] = useState(initialTitle);
   const [active, setActive] = useState<string | null>(null);
+  const [limit, setLimit] = useState(RESULTS_DEFAULT);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const [status, setStatus] = useState(() => summarize({ drives: [] }));
   const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
   const updater = useMemo(() => createUpdater({ onState: setUpdate }), []);
 
   useEffect(() => {
     void loadTitle().then(setTitle);
+    void loadLimit().then(setLimit);
     void revealMain(loadActive().then(setActive));
     const stop = watchStatus(setStatus);
     return () => {
@@ -54,14 +60,23 @@ export function App() {
         onMinimize={minimizeWindow}
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
+        onSettings={() => setSettingsOpen(true)}
       />
-      <SearchView total={status.total} active={active} onActiveChange={setActive} />
+      <SearchView
+        total={status.total}
+        active={active}
+        onActiveChange={setActive}
+        limit={limit}
+      />
       <UpdateBanner
         state={update}
         onRestart={() => void updater.restart()}
         onLater={updater.later}
       />
       <StatusBar line={status} />
+      {settingsOpen && (
+        <SettingsSheet limit={limit} onLimitChange={setLimit} onClose={closeSettings} />
+      )}
     </div>
   );
 }

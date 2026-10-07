@@ -11,6 +11,7 @@ use crate::model::dated;
 use crate::model::db::Db;
 use crate::model::index::service::IndexService;
 use crate::model::search::{self, Filters, Hit, Query};
+use crate::model::settings;
 use crate::model::tags;
 
 /// What one search answers.
@@ -63,6 +64,16 @@ pub fn search(
             hits,
         }),
     )
+}
+
+/// [`search`] for as many results as the user's settings ask for.
+pub fn search_saved(
+    db: &Db,
+    index: &IndexService,
+    text: &str,
+    filters: &Filters,
+) -> AppResult<Option<Answer>> {
+    search(db, index, text, filters, settings::results_limit(db)?)
 }
 
 /// The tagged folders that still exist and match the query's name terms, best first.
@@ -299,6 +310,24 @@ mod tests {
             ["dated-tagged"]
         );
         assert!(names(search(&db, &index, "", &tagged(None, Some(1_000)), 10)).is_empty());
+    }
+
+    #[test]
+    fn the_saved_limit_sets_how_many_results_come_back() {
+        let names: Vec<String> = (0..400).map(|i| format!("log{i:03}.txt")).collect();
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        let index = rooted(&std::env::temp_dir(), &refs);
+        let db = db::open_in_memory().unwrap();
+        let count = |db: &Db| {
+            search_saved(db, &index, "log", &Filters::default())
+                .unwrap()
+                .unwrap()
+                .hits
+                .len()
+        };
+        assert_eq!(count(&db), 200);
+        settings::set_results_limit(&db, 300).unwrap();
+        assert_eq!(count(&db), 300);
     }
 
     #[test]

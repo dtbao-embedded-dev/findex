@@ -12,6 +12,7 @@ import {
   latestDetails,
   latestOnly,
   moveSelection,
+  resultsView,
   revealHit,
 } from "./searchPresenter";
 
@@ -128,10 +129,30 @@ describe("describeResults", () => {
     expect(describeResults(200, 15)).toBe("Top 200 results · 15 ms");
   });
 
+  it("counts against the limit the settings chose", () => {
+    expect(describeResults(5000, 42, { limit: 5000 })).toBe("Top 5,000 results · 42 ms");
+    expect(describeResults(4999, 42, { limit: 5000 })).toBe("4,999 results · 42 ms");
+  });
+
   it("says how to see more when a date was checked on the best matches only", () => {
-    expect(describeResults(3, 80, true)).toBe(
+    expect(describeResults(3, 80, { partial: true })).toBe(
       "3 results · 80 ms · type more of the name to find older matches",
     );
+  });
+});
+
+describe("resultsView", () => {
+  const state = { query: "rep", hits: [hit("C:\report.pdf")], error: null, tookMs: 3 };
+  it("lists results, also while the first answer is on its way", () => {
+    expect(resultsView(state, { tags: [] })).toBe("list");
+    expect(resultsView({ ...state, hits: [], tookMs: null }, { tags: [] })).toBe("list");
+  });
+
+  it("shows an error first, then the empty screen, then no matches", () => {
+    expect(resultsView({ ...state, error: "boom" }, { tags: [] })).toBe("error");
+    expect(resultsView({ ...state, query: " " }, { tags: [] })).toBe("empty");
+    expect(resultsView({ ...state, query: " " }, { tags: ["work"] })).toBe("list");
+    expect(resultsView({ ...state, hits: [] }, { tags: [] })).toBe("none");
   });
 });
 

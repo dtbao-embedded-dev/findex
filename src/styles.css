@@ -237,6 +237,36 @@ button:focus-visible {
   align-self: stretch;
 }
 
+/* The app's own tools, just left of the window buttons. */
+.titlebar-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: auto;
+  padding-right: 0.375rem;
+}
+
+.titlebar-tool {
+  display: grid;
+  place-items: center;
+  width: 1.875rem;
+  height: 1.75rem;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border-radius: var(--radius-xs);
+}
+
+.titlebar-tool:hover {
+  color: var(--fg);
+  background: var(--fill);
+}
+
+.titlebar-tool svg {
+  width: 1.0625rem;
+  height: 1.0625rem;
+}
+
 .titlebar-buttons button {
   width: 2.875rem;
   height: 100%;
@@ -841,6 +871,7 @@ button:focus-visible {
 }
 
 .results-scroll {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -857,10 +888,19 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* The list keeps its full height; only the rows in view exist, each placed by its
+   index. */
 .results {
+  position: relative;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.results > .result {
+  position: absolute;
+  right: 0;
+  left: 0;
 }
 
 /* One fixed-height row per result, as in Finder's list view. */
@@ -1150,6 +1190,196 @@ kbd {
   font-size: 0.8125rem;
 }
 
+/* The settings sheet: it drops from under the title bar over a dimmed window, as a
+   macOS sheet does. The scrim leaves the title bar clear, so the window can still be
+   moved and closed. */
+.sheet-scrim {
+  position: absolute;
+  inset: 2.5rem 0 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 1rem 1rem;
+  background: var(--scrim);
+  animation: fade 200ms ease both;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(34rem, 100%);
+  max-height: calc(100% - 1rem);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  transform-origin: top center;
+  animation: sheet-in 280ms var(--ease) both;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-1rem);
+  }
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sheet-header h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 650;
+}
+
+.sheet-close {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  color: var(--muted);
+  background: var(--fill);
+  border-radius: 50%;
+}
+
+.sheet-close:hover {
+  color: var(--fg);
+  background: var(--fill-strong);
+}
+
+.sheet-close svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sheet-heading {
+  margin: 0 0.25rem;
+  color: var(--muted);
+  font-family: var(--font-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Grouped rows on an inset card, as in System Settings. */
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  background: var(--fill);
+  border-radius: var(--radius);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.setting-row + .setting-row {
+  border-top: 1px solid var(--hairline);
+}
+
+.setting-row.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.625rem;
+}
+
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.setting-text label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.setting-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.setting-number {
+  width: 6.5rem;
+  flex: none;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  background: var(--raised);
+}
+
+.setting-number[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* A slider is not a text field: none of the field's padding, fill or border. */
+.setting-slider {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  accent-color: var(--accent);
+}
+
+.setting-slider:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: 0.1875rem solid var(--accent-soft);
+  outline-offset: 0.25rem;
+}
+
+.setting-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.setting-chip {
+  padding: 0.25rem 0.75rem;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--raised);
+  border-radius: 999px;
+}
+
+.setting-chip:hover {
+  background: var(--fill-strong);
+}
+
+.setting-chip[aria-pressed="true"] {
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.setting-error {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
 /* A short confirmation over the status bar; errors stay a little longer. */
 .toast {
   position: absolute;
@@ -1361,6 +1591,7 @@ kbd {
 
   .drive-menu,
   .filter-panel,
+  .sheet,
   .context-menu,
   .tag-editor,
   .update-banner,

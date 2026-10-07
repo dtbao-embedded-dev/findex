@@ -3,17 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
 import type { TagCount } from "../model/tags";
+import type { Rows } from "../presenter/listPresenter";
 import {
   canSearch,
-  describeHit,
   describeResults,
-  folderOf,
-  highlight,
   initialSearch,
   keepSelection,
   latestDetails,
   latestOnly,
   moveSelection,
+  resultsView,
   revealHit,
 } from "../presenter/searchPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
@@ -28,6 +27,7 @@ import {
 import { loadTags } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
 import { FilterBar } from "./FilterBar";
+import { ResultList } from "./ResultList";
 import { Sidebar } from "./Sidebar";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
@@ -50,6 +50,8 @@ type Props = {
   /** The drive the search covers. */
   active: string | null;
   onActiveChange: (active: string | null) => void;
+  /** How many results a search shows, from the settings. */
+  limit: number;
 };
 
 /**
@@ -57,12 +59,15 @@ type Props = {
  * selection, Enter (or a double click) shows the result in Explorer, Esc clears.
  * Right-click, the menu key or Shift+F10 opens the actions for a result.
  */
-export function SearchView({ total, active, onActiveChange }: Props) {
+export function SearchView({ total, active, onActiveChange, limit }: Props) {
   const [state, setState] = useState(initialSearch);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
   const loadDetails = useMemo(() => latestDetails(), []);
   const [details, setDetails] = useState<Record<string, Details>>({});
+  // The rows in view, whose details are read; the rest are read as they scroll in.
+  const [shown, setShown] = useState<Rows>({ first: 0, last: 0 });
+  const detailsFor = useRef(state.hits);
   const field = useRef<HTMLInputElement>(null);
   const rows = useRef<(HTMLLIElement | null)[]>([]);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
@@ -113,18 +118,17 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     return () => window.removeEventListener("focus", focus);
   }, []);
 
+  // Details follow the rows in view; until they arrive a row keeps what it showed
+  // before. New results replace the details read so far, a scroll adds to them.
   useEffect(() => {
-    rows.current[state.selected]?.scrollIntoView({ block: "nearest" });
-  }, [state.selected, state.hits]);
-
-  // Details follow the results; until they arrive a row keeps what it showed before.
-  useEffect(() => {
-    void loadDetails(state.hits).then((found) => {
+    const fresh = detailsFor.current !== state.hits;
+    detailsFor.current = state.hits;
+    void loadDetails(state.hits.slice(shown.first, shown.last)).then((found) => {
       if (found) {
-        setDetails(found);
+        setDetails((d) => (fresh ? found : { ...d, ...found }));
       }
     });
-  }, [state.hits, loadDetails]);
+  }, [state.hits, shown, loadDetails]);
 
   // Dates such as "Today" are measured when each search is asked, not when picked.
   const run = (query: string, by: FilterState = filters) => {
@@ -156,8 +160,9 @@ export function SearchView({ total, active, onActiveChange }: Props) {
         }));
       }
     });
-    // Only a change in the searchable count refreshes here; typing runs on its own.
-  }, [total]);
+    // Only a change in the searchable count or the results limit refreshes here;
+    // typing runs on its own.
+  }, [total, limit]);
 
   const reveal = (index: number) => {
     const hit = state.hits[index];
@@ -213,7 +218,7 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     }
   };
 
-  const hasQuery = canSearch(state.query, filters);
+  const view = resultsView(state, filters);
 
   const searchTag = (tag: string) => {
     changeFilters({ ...filters, tags: toggleTag(filters.tags, tag) });
@@ -259,94 +264,68 @@ export function SearchView({ total, active, onActiveChange }: Props) {
               }}
             />
           </label>
-          <FilterBar
-            filters={filters}
-            tags={tagsInUse}
-            onChange={changeFilters}
-          />
+          <FilterBar filters={filters} tags={tagsInUse} onChange={changeFilters} />
         </div>
 
-        <div className="results-scroll">
-          {state.error !== null ? (
-            <div className="empty">
-              <p className="error">{state.error}</p>
-            </div>
-          ) : !hasQuery ? (
-            <div className="empty">
-              <EmptyGlyph />
-              <p className="empty-title">
-                Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
-              </p>
-              <p className="empty-hint">
-                {isFiltered(filters) ? (
-                  <>Type part of a name to search with these filters.</>
-                ) : (
-                  <>
-                    Type part of a name, then narrow with the filters above or{" "}
-                    <kbd>ext:pdf</kbd>.
-                  </>
-                )}
-              </p>
-            </div>
-          ) : state.hits.length === 0 && state.tookMs !== null ? (
-            <div className="empty">
-              <p className="empty-title">No matches for &ldquo;{state.query.trim()}&rdquo;</p>
-            </div>
-          ) : (
-            <>
-              {state.tookMs !== null && (
-                <p className="results-meta">
-                  {describeResults(state.hits.length, state.tookMs, state.partial)}
+        {view === "list" ? (
+          <ResultList
+            hits={state.hits}
+            selected={state.selected}
+            query={state.query}
+            details={details}
+            meta={
+              state.tookMs === null
+                ? null
+                : describeResults(state.hits.length, state.tookMs, {
+                    partial: state.partial,
+                    limit,
+                  })
+            }
+            rows={rows}
+            onSelect={(index) => setState((s) => ({ ...s, selected: index }))}
+            onReveal={reveal}
+            onMenu={(at, index) => {
+              const hit = state.hits[index];
+              setState((s) => ({ ...s, selected: index }));
+              if (hit) {
+                setMenu({ at, hit });
+              }
+            }}
+            onTag={searchTag}
+            onDetailsWindow={setShown}
+          />
+        ) : (
+          <div className="results-scroll">
+            {view === "error" && (
+              <div className="empty">
+                <p className="error">{state.error}</p>
+              </div>
+            )}
+            {view === "empty" && (
+              <div className="empty">
+                <EmptyGlyph />
+                <p className="empty-title">
+                  Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
                 </p>
-              )}
-              <ul id="results" className="results" role="listbox" aria-label="Results">
-                {state.hits.map((hit, index) => (
-                  <li
-                    key={hit.path}
-                    ref={(el) => {
-                      rows.current[index] = el;
-                    }}
-                    role="option"
-                    aria-selected={index === state.selected}
-                    className={index === state.selected ? "result is-selected" : "result"}
-                    onMouseDown={() => setState((s) => ({ ...s, selected: index }))}
-                    onDoubleClick={() => reveal(index)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      setState((s) => ({ ...s, selected: index }));
-                      setMenu({ at: { x: event.clientX, y: event.clientY }, hit });
-                    }}
-                  >
-                    <KindGlyph folder={hit.isDir} />
-                    <span className="result-text">
-                      <span className="result-line">
-                        <span className="result-name">
-                          {highlight(hit.name, state.query).map((part, i) =>
-                            part.match ? <mark key={i}>{part.text}</mark> : part.text,
-                          )}
-                        </span>
-                        {details[hit.path]?.tags.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            className="tag-chip is-small"
-                            tabIndex={-1}
-                            title={`Filter by the tag ${tag}`}
-                            onClick={() => searchTag(tag)}
-                          >
-                            #{tag}
-                          </button>
-                        ))}
-                      </span>
-                      <span className="result-path">{folderOf(hit.path)}</span>
-                    </span>
-                    <HitMeta meta={describeHit(details[hit.path])} />
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+                <p className="empty-hint">
+                  {isFiltered(filters) ? (
+                    <>Type part of a name to search with these filters.</>
+                  ) : (
+                    <>
+                      Type part of a name, then narrow with the filters above or{" "}
+                      <kbd>ext:pdf</kbd>.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+            {view === "none" && (
+              <div className="empty">
+                <p className="empty-title">No matches for &ldquo;{state.query.trim()}&rdquo;</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {menu !== null && (
           <ContextMenu
@@ -374,19 +353,6 @@ export function SearchView({ total, active, onActiveChange }: Props) {
   );
 }
 
-/** Type and size over the last-changed date, at the right of a result. */
-function HitMeta({ meta }: { meta: { kind: string; modified: string } | null }) {
-  if (meta === null) {
-    return null;
-  }
-  return (
-    <span className="result-meta">
-      <span>{meta.kind}</span>
-      <span>{meta.modified}</span>
-    </span>
-  );
-}
-
 /** A large, quiet magnifier over the empty screen. */
 function EmptyGlyph() {
   return (
@@ -403,26 +369,6 @@ function SearchGlyph() {
     <svg className="search-glyph" viewBox="0 0 20 20" aria-hidden="true">
       <circle cx="8.5" cy="8.5" r="5.75" fill="none" stroke="currentColor" strokeWidth="1.75" />
       <path d="M13 13l4.25 4.25" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function KindGlyph({ folder }: { folder: boolean }) {
-  return folder ? (
-    <svg className="kind-glyph is-folder" viewBox="0 0 24 24" aria-label="Folder">
-      <path
-        d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2h7.4A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"
-        fill="currentColor"
-      />
-    </svg>
-  ) : (
-    <svg className="kind-glyph" viewBox="0 0 24 24" aria-label="File">
-      <path
-        d="M7 3h6.5L19 8.5V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
-        fill="currentColor"
-        opacity="0.22"
-      />
-      <path d="M13.5 3v5.5H19" fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

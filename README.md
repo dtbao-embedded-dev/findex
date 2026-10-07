@@ -58,6 +58,8 @@ The app window opens; edits under src/ reload it.
   by the tags a folder carries. A tag can also be picked in the sidebar.
 - The index holds names only, so a date filter reads dates from the disk for the best
   name matches. When the line above the results says so, type more of the name.
+- Settings (the gear in the title bar) set how many results a search shows, from 200
+  to 10,000.
 
 ## Build from source
 

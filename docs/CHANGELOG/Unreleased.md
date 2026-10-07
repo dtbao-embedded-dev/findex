@@ -107,6 +107,18 @@
     second on 1.2 million names.
   - **Without a name:** a date or kind alone lists nothing, since there is no name to
     look for; a tag alone lists the folders carrying it.
+- Settings (the gear in the title bar) open as a sheet over the window. The first
+  setting is **Results per search**, from 200 (the default) to 10,000, typed, slid or
+  picked from 200 / 1,000 / 5,000 / 10,000. It applies to the search on screen at
+  once and is kept across restarts.
+  - **Checked twice:** a value out of range is refused with a note and the saved one
+    kept; Rust checks it again, and falls back to 200 if a stored value is ever
+    out of range.
+  - **Cost:** more results take longer. In a development build a one-letter search
+    on 1.2 million names took about 0.4 s for 10,000 results against 0.07 s for 200.
+- The result list renders only the rows in view and reads type, size and date only
+  for them, so 10,000 results scroll as smoothly as 200. ↑ from the first result
+  still jumps to the last, and the menu key opens its actions there.
 - Findex updates itself. It checks for a newer signed release 10 seconds after it
   opens and every six hours, downloads it in the background, then offers "Restart
   now" or "Later" in a card above the status bar. "Later" keeps the download and

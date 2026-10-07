@@ -13,7 +13,8 @@ use crate::model::find::{self, Answer};
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
-use crate::model::search::{Filters, DEFAULT_LIMIT};
+use crate::model::search::Filters;
+use crate::model::settings;
 use crate::model::tags::{self, TagCount};
 use crate::splash;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -36,6 +37,18 @@ pub fn get_setting(db: State<'_, Db>, key: &str) -> AppResult<Option<String>> {
 #[tauri::command]
 pub fn set_setting(db: State<'_, Db>, key: &str, value: &str) -> AppResult<()> {
     db.set_setting(key, value)
+}
+
+/// How many results a search shows.
+#[tauri::command]
+pub fn get_results_limit(db: State<'_, Db>) -> AppResult<usize> {
+    settings::results_limit(&db)
+}
+
+/// Saves how many results a search shows; a value out of range is refused.
+#[tauri::command]
+pub fn set_results_limit(db: State<'_, Db>, limit: usize) -> AppResult<usize> {
+    settings::set_results_limit(&db, limit)
 }
 
 #[tauri::command]
@@ -102,25 +115,17 @@ pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
 
 /// Runs off the async runtime: a query is CPU work across every core, and a date
 /// filter waits on the disk. Resolves to null when a newer query replaced this one.
-/// Tags are read from the tags table.
+/// Tags are read from the tags table; the number of results from the settings.
 #[tauri::command]
 pub async fn search_names(
     app: AppHandle,
     query: String,
     filters: Option<Filters>,
-    limit: Option<usize>,
 ) -> AppResult<Option<Answer>> {
     tauri::async_runtime::spawn_blocking(move || {
         let db = app.state::<Db>();
         let index = app.state::<Arc<IndexService>>();
-        let filters = filters.unwrap_or_default();
-        find::search(
-            &db,
-            &index,
-            &query,
-            &filters,
-            limit.unwrap_or(DEFAULT_LIMIT),
-        )
+        find::search_saved(&db, &index, &query, &filters.unwrap_or_default())
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))?
