@@ -1,7 +1,9 @@
 import { describePaths, type Details } from "../model/details";
 import { searchNames, type Answer, type Filters, type Hit } from "../model/search";
 import { formatBytes } from "./drivePresenter";
-import { RESULTS_DEFAULT } from "./settingsPresenter";
+
+/** Rows asked for at a time; the next page is loaded as the list scrolls near the end. */
+export const PAGE = 500;
 
 /** What the search screen shows. */
 export type SearchState = {
@@ -15,6 +17,10 @@ export type SearchState = {
   partial: boolean;
   /** Bytes of memory the search index held at the last answer. */
   indexBytes: number | null;
+  /** Every result there is, loaded or not; null while unknown. */
+  total: number | null;
+  /** Another page can be loaded. */
+  more: boolean;
 };
 
 export const initialSearch: SearchState = {
@@ -25,13 +31,18 @@ export const initialSearch: SearchState = {
   tookMs: null,
   partial: false,
   indexBytes: null,
+  total: null,
+  more: false,
 };
 
 /** The part of the state one search answers; null when a later search superseded it. */
 export type SearchUpdate = Pick<
   SearchState,
-  "hits" | "selected" | "error" | "tookMs" | "partial" | "indexBytes"
+  "hits" | "selected" | "error" | "tookMs" | "partial" | "indexBytes" | "total" | "more"
 >;
+
+/** The rows loaded once the next page arrived, and what is known of the rest. */
+export type PageUpdate = Pick<SearchState, "hits" | "total" | "more" | "partial">;
 
 const CLEARED: SearchUpdate = {
   hits: [],
@@ -40,7 +51,16 @@ const CLEARED: SearchUpdate = {
   tookMs: null,
   partial: false,
   indexBytes: null,
+  total: null,
+  more: false,
 };
+
+type Ask = (
+  query: string,
+  filters: Filters,
+  offset: number,
+  count: number,
+) => Promise<Answer | null>;
 
 /** The filters that can stand in for a typed name. */
 type Selecting = { tags: string[]; exts?: string[] };
@@ -72,28 +92,38 @@ export function resultsView(
 }
 
 /**
- * Wraps the model search so only the latest call's answer is used: typing or a filter
- * change fires a search, and an older, slower answer must never replace a newer one.
- * Nothing to search for clears the results without asking Rust.
+ * Wraps the model search so only the latest search's answers are used: typing or a
+ * filter change fires a search, and an older, slower answer must never replace a newer
+ * one. `search` answers the first `count` rows (a page, or the rows already shown when
+ * refreshing); `more` loads the page after `loaded` for the same search, and its
+ * answer is dropped once a newer search started. Nothing to search for clears the
+ * results without asking Rust.
  */
 export function latestOnly(
-  ask: (query: string, filters: Filters) => Promise<Answer | null> = searchNames,
+  ask: Ask = searchNames,
   now: () => number = () => performance.now(),
-): (query: string, filters: Filters) => Promise<SearchUpdate | null> {
+): {
+  search: (query: string, filters: Filters, count?: number) => Promise<SearchUpdate | null>;
+  more: (query: string, filters: Filters, loaded: Hit[]) => Promise<PageUpdate | null>;
+} {
   let latest = 0;
-  return async (query, filters) => {
+  const search = async (
+    query: string,
+    filters: Filters,
+    count = PAGE,
+  ): Promise<SearchUpdate | null> => {
     const mine = ++latest;
     if (!canSearch(query, filters)) {
       return CLEARED;
     }
     const start = now();
     try {
-      let answer = await ask(query, filters);
+      let answer = await ask(query, filters, 0, count);
       // Rust answers null when it cancelled this search for one that reached it
       // later. Calls can reach Rust out of order, so an older keystroke may have
       // cancelled this, the newest: ask once more, and it then wins.
       if (answer === null && mine === latest) {
-        answer = await ask(query, filters);
+        answer = await ask(query, filters, 0, count);
       }
       if (mine !== latest || answer === null) {
         return null;
@@ -105,34 +135,76 @@ export function latestOnly(
         tookMs: now() - start,
         partial: answer.partial,
         indexBytes: answer.indexBytes,
+        total: answer.total,
+        more: answer.more,
       };
     } catch (err) {
       return mine === latest ? { ...CLEARED, error: String(err) } : null;
     }
   };
+  const more = async (
+    query: string,
+    filters: Filters,
+    loaded: Hit[],
+  ): Promise<PageUpdate | null> => {
+    const mine = latest;
+    let answer: Answer | null;
+    try {
+      answer = await ask(query, filters, loaded.length, PAGE);
+    } catch {
+      // A page that fails leaves the rows already shown; scrolling asks again.
+      return null;
+    }
+    if (mine !== latest || answer === null) {
+      return null;
+    }
+    return {
+      hits: appendPage(loaded, answer.hits),
+      total: answer.total,
+      more: answer.more,
+      partial: answer.partial,
+    };
+  };
+  return { search, more };
+}
+
+/**
+ * The rows loaded with the next page after them. A file indexed between two pages
+ * can shift the ranking by a row, so a result already shown is not shown twice.
+ */
+export function appendPage(loaded: Hit[], page: Hit[]): Hit[] {
+  const shown = new Set(loaded.map((hit) => hit.path));
+  return [...loaded, ...page.filter((hit) => !shown.has(hit.path))];
 }
 
 /**
  * The line above the results: how many, how fast, and how much memory the index
- * searched holds. A full page (`limit` results) means there are more matches. When
- * a date was checked on only the best name matches, it says how to see more.
+ * searched holds. It counts every result, not only the rows loaded so far; when the
+ * count is not known yet, `+` says more follow. When a date was checked on only the
+ * best name matches, it says how to see more.
  */
 export function describeResults(
-  count: number,
+  loaded: number,
   tookMs: number,
   {
+    total = null,
+    more = false,
     partial = false,
-    limit = RESULTS_DEFAULT,
     indexBytes = null,
-  }: { partial?: boolean; limit?: number; indexBytes?: number | null } = {},
+  }: {
+    total?: number | null;
+    more?: boolean;
+    partial?: boolean;
+    indexBytes?: number | null;
+  } = {},
 ): string {
-  const amount =
-    count >= limit
-      ? `Top ${limit.toLocaleString("en-US")} results`
-      : `${count.toLocaleString("en-US")} result${count === 1 ? "" : "s"}`;
+  const count = total ?? loaded;
+  const plus = total === null && more ? "+" : "";
+  const noun = count === 1 && plus === "" ? "result" : "results";
+  const amount = `${count.toLocaleString("en-US")}${plus} ${noun}`;
   const memory = indexBytes === null ? "" : ` · ${formatBytes(indexBytes)} RAM`;
-  const more = partial ? " · type more of the name to find older matches" : "";
-  return `${amount} · ${Math.max(1, Math.round(tookMs))} ms${memory}${more}`;
+  const hint = partial ? " · type more of the name to find older matches" : "";
+  return `${amount} · ${Math.max(1, Math.round(tookMs))} ms${memory}${hint}`;
 }
 
 /**

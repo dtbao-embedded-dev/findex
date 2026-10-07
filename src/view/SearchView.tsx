@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
 import type { TagInfo } from "../model/tags";
-import type { Rows } from "../presenter/listPresenter";
+import { needsMore, type Rows } from "../presenter/listPresenter";
 import {
   canSearch,
   describeResults,
@@ -12,6 +12,7 @@ import {
   latestDetails,
   latestOnly,
   moveSelection,
+  PAGE,
   resultsView,
 } from "../presenter/searchPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
@@ -50,8 +51,6 @@ type Props = {
   /** The drive the search covers. */
   active: string | null;
   onActiveChange: (active: string | null) => void;
-  /** How many results a search shows, from the settings. */
-  limit: number;
   /** Every tag that can be picked. */
   tags: TagInfo[];
   /** Asks for the tags again after a folder's tags changed. */
@@ -63,10 +62,12 @@ type Props = {
  * selection and Esc clears. Enter and a double click open nothing: every action on a
  * result goes through its menu (right-click, the menu key or Shift+F10).
  */
-export function SearchView({ total, active, onActiveChange, limit, tags, onTagsChanged }: Props) {
+export function SearchView({ total, active, onActiveChange, tags, onTagsChanged }: Props) {
   const [state, setState] = useState(initialSearch);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
+  // Set while the next page is on its way, so a scroll asks for it once.
+  const loadingMore = useRef(false);
   const loadDetails = useMemo(() => latestDetails(), []);
   const [details, setDetails] = useState<Record<string, Details>>({});
   // The rows in view, whose details are read; the rest are read as they scroll in.
@@ -148,7 +149,7 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
   // Dates such as "Today" are measured when each search is asked, not when picked.
   const run = (query: string, by: FilterState = filters) => {
     setState((s) => ({ ...s, query }));
-    void search(query, toFilters(by)).then((update) => {
+    void search.search(query, toFilters(by)).then((update) => {
       if (update) {
         setState((s) => ({ ...s, ...update }));
       }
@@ -160,12 +161,14 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
     run(state.query, next);
   };
 
-  // Answers the query on screen again, keeping the selected file.
+  // Answers the query on screen again, keeping the selected file and as many rows as
+  // were already loaded, so a background refresh never shortens the list.
   const refresh = () => {
     if (!canSearch(state.query, filters)) {
       return;
     }
-    void search(state.query, toFilters(filters)).then((update) => {
+    const count = Math.max(PAGE, state.hits.length);
+    void search.search(state.query, toFilters(filters), count).then((update) => {
       if (update) {
         setState((s) => ({
           ...s,
@@ -186,8 +189,21 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
     // Only a change in the searchable count refreshes here; typing runs on its own.
   }, [total]);
 
-  // A new results limit applies to the search on screen at once.
-  useEffect(refresh, [limit]);
+  // There is no cap on results: the next page is loaded as the rows drawn near the end
+  // of those loaded. A page answers only the search it was asked for.
+  useEffect(() => {
+    if (loadingMore.current || !needsMore(shown.last, state.hits.length, state.more)) {
+      return;
+    }
+    loadingMore.current = true;
+    const loaded = state.hits;
+    void search.more(state.query, toFilters(filters), loaded).then((page) => {
+      loadingMore.current = false;
+      if (page) {
+        setState((s) => (s.hits === loaded ? { ...s, ...page } : s));
+      }
+    });
+  }, [shown, state.hits, state.more]);
 
   const openMenuAtSelection = () => {
     const index = state.selected;
@@ -306,8 +322,9 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
               state.tookMs === null
                 ? null
                 : describeResults(state.hits.length, state.tookMs, {
+                    total: state.total,
+                    more: state.more,
                     partial: state.partial,
-                    limit,
                     indexBytes: state.indexBytes,
                   })
             }

@@ -52,8 +52,6 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             commands::get_setting,
             commands::set_setting,
-            commands::get_results_limit,
-            commands::set_results_limit,
             commands::app_about,
             commands::splash_ready,
             commands::list_drives,

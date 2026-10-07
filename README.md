@@ -61,8 +61,8 @@ The app window opens; edits under src/ reload it.
   name matches. When the line above the results says so, type more of the name.
 - Right-click a folder and choose Tags… to give it a preset tag (Working, Doc, Important, …) or one of your own.
   Your own tags are made and deleted in Settings.
-- Settings (the gear in the title bar) set how many results a search shows, from 200
-  to 10,000.
+- There is no cap on results: the best 500 show at once and more load as the list
+  scrolls, until every match is listed. The line above the results counts them all.
 
 ## Build from source
 

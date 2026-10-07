@@ -23,7 +23,7 @@ use crate::model::db::Db;
 use crate::model::drives::{self, Method};
 use crate::model::index::store::VolumeIndex;
 use crate::model::index::{mft, snapshot, walk, watch};
-use crate::model::search::{self, Hit, Query};
+use crate::model::search::{self, Page, Query};
 use crate::model::win32::{self, Journal};
 
 /// How the service reports progress; the app turns it into an `index-status` event.
@@ -189,16 +189,18 @@ impl IndexService {
         move || self.query.load(Ordering::Relaxed) != mine
     }
 
-    /// Searches every ready drive. Returns `None` when `cancelled` reports, before it
-    /// finished, that a newer search replaced this one, so the caller can drop it.
+    /// Searches every ready drive for `count` results from rank `offset`. Returns
+    /// `None` when `cancelled` reports, before it finished, that a newer search
+    /// replaced this one, so the caller can drop it.
     pub fn search(
         &self,
         query: &Query,
-        limit: usize,
+        offset: usize,
+        count: usize,
         cancelled: &(dyn Fn() -> bool + Sync),
-    ) -> Option<Vec<Hit>> {
+    ) -> Option<Page> {
         let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
-        search::run(&volumes, query, limit, cancelled)
+        search::run(&volumes, query, offset, count, cancelled)
     }
 
     /// Bytes of memory the indexes of the chosen drives hold.
@@ -524,6 +526,7 @@ fn root_letter(index: &VolumeIndex) -> char {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::search::Hit;
 
     fn volume(letter: char, names: &[&str]) -> VolumeIndex {
         let mut index = VolumeIndex::new(format!("{letter}:\\"), 0);
@@ -538,7 +541,9 @@ mod tests {
     }
 
     fn search(service: &IndexService, text: &str) -> Option<Vec<Hit>> {
-        service.search(&search::parse(text), 10, &service.begin_search())
+        service
+            .search(&search::parse(text), 0, 10, &service.begin_search())
+            .map(|page| page.hits)
     }
 
     #[test]

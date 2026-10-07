@@ -152,7 +152,9 @@ mod tests {
         let temp = tree("paths");
         let index = build(&temp.0, "T:\\", &QUIET).unwrap();
         assert_eq!(index.len(), 5);
-        let hits = search::run(&[index], &search::parse("uart"), 10, &|| false).unwrap();
+        let hits = search::run(&[index], &search::parse("uart"), 0, 10, &|| false)
+            .unwrap()
+            .hits;
         assert_eq!(hits[0].path, "T:\\docs\\specs\\uart.md");
     }
 
@@ -170,7 +172,9 @@ mod tests {
         assert!(made.status.success(), "mklink failed: {made:?}");
         let index = build(&temp.0, "T:\\", &QUIET).unwrap();
         assert_eq!(index.len(), 6);
-        let hits = search::run(&[index], &search::parse("loop"), 10, &|| false).unwrap();
+        let hits = search::run(&[index], &search::parse("loop"), 0, 10, &|| false)
+            .unwrap()
+            .hits;
         assert_eq!(hits.len(), 1);
         assert!(hits[0].is_dir);
     }

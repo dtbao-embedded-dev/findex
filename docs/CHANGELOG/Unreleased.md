@@ -121,9 +121,9 @@
   - **Tags:** folders carrying every tag picked, from the filter's menu or the
     sidebar; a tag chip on a result turns its filter on or off.
   - **How dates are read:** the index holds names only, so dates are read from the
-    disk for the best name matches, up to 20,000 to 100,000 of them depending on the
-    results limit. When that was not enough, the line above the results says to type
-    more of the name. A one-letter search checked against the last day took under a
+    disk for the best name matches, 20,000 to 100,000 of them depending on how far
+    the list was scrolled. When that was not enough, the line above the results says
+    to type more of the name. A one-letter search checked against the last day took under a
     second on 1.2 million names.
   - **Without a name:** a date or kind alone lists nothing, since there is no name to
     look for; a tag alone lists the folders carrying it, and a type alone every file of
@@ -132,20 +132,20 @@
   - **While files change:** a search with a date filter is not re-run on its own as
     files change, since each run reads thousands of dates from the disk; typing or
     changing a filter runs it again. Custom dates before 1970 are not accepted.
-- Settings (the gear in the title bar) open as a sheet over the window. The first
-  setting is **Results per search**, from 200 (the default) to 10,000, typed, slid or
-  picked from 200 / 1,000 / 5,000 / 10,000. It applies to the search on screen at
-  once and is kept across restarts.
-  - **Checked twice:** a value out of range is refused with a note and the saved one
-    kept; Rust checks it again, and falls back to 200 if a stored value is ever
-    out of range.
-  - **Cost:** more results take longer. In a development build a one-letter search
-    on 1.2 million names took about 0.4 s for 10,000 results against 0.07 s for 200.
+- Settings (the gear in the title bar) open as a sheet over the window, holding the
+  tags.
+- A search has no cap on results. The best 500 show at once, and the next 500 load
+  as the list scrolls near the end, until every match is listed. The line above the
+  results counts every match, not only the rows loaded ("48,213 results"); with a
+  date filter, where the count is only known once every date was read, it says
+  "500+ results" until then. Each page ranks the drive again, so pages follow one
+  order; a file that appears between two pages is never listed twice.
 - The result list renders only the rows in view and reads type, size and date only
-  for them, so 10,000 results scroll as smoothly as 200. ↑ from the first result
-  still jumps to the last, and the menu key opens its actions there.
+  for them, so a list of a hundred thousand rows scrolls as smoothly as one of 200.
+  ↑ from the first result still jumps to the last loaded, and the menu key opens its
+  actions there.
 - The line above the results shows how much memory the drive's name index holds,
-  beside the search time: "Top 200 results · 18 ms · 133 MB RAM". It counts what the
+  beside the search time: "48,213 results · 18 ms · 133 MB RAM". It counts what the
   index's containers hold, so it is lower than the app's working set in Task Manager,
   which also holds the window and the rest of the app (133 MB against 191 MB for
   1.2 million names here).

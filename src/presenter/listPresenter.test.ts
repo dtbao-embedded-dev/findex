@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { detailsWindow, scrollToShow, visibleRange } from "./listPresenter";
+import { detailsWindow, needsMore, scrollToShow, visibleRange } from "./listPresenter";
 
 describe("visibleRange", () => {
   it("renders the rows in view plus a margin on each side", () => {
@@ -40,5 +40,18 @@ describe("detailsWindow", () => {
     expect(detailsWindow(16, 38, 10_000, 50)).toEqual({ first: 0, last: 50 });
     expect(detailsWindow(60, 101, 10_000, 50)).toEqual({ first: 50, last: 150 });
     expect(detailsWindow(60, 101, 120, 50)).toEqual({ first: 50, last: 120 });
+  });
+});
+
+describe("needsMore", () => {
+  it("asks for the next page once the rows drawn come near the end", () => {
+    expect(needsMore(350, 500, true)).toBe(false);
+    expect(needsMore(400, 500, true)).toBe(true);
+    expect(needsMore(500, 500, true)).toBe(true);
+  });
+
+  it("never asks when no page follows or nothing is loaded", () => {
+    expect(needsMore(500, 500, false)).toBe(false);
+    expect(needsMore(0, 0, true)).toBe(false);
   });
 });

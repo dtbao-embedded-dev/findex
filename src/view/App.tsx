@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
 import { loadActive } from "../presenter/drivePresenter";
 import type { TagInfo } from "../model/tags";
-import { loadLimit, RESULTS_DEFAULT } from "../presenter/settingsPresenter";
 import { revealMain } from "../presenter/splashPresenter";
 import { loadTags } from "../presenter/tagPresenter";
 import { rescan, rescanLabel, summarize, watchStatus } from "../presenter/statusPresenter";
@@ -31,7 +30,6 @@ import { UpdateBanner } from "./UpdateBanner";
 export function App() {
   const [title, setTitle] = useState(initialTitle);
   const [active, setActive] = useState<string | null>(null);
-  const [limit, setLimit] = useState(RESULTS_DEFAULT);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Why a re-scan could not start; it fades like any other note.
   const [rescanError, setRescanError] = useState<string | null>(null);
@@ -45,7 +43,6 @@ export function App() {
 
   useEffect(() => {
     void loadTitle().then(setTitle);
-    void loadLimit().then(setLimit);
     refreshTags();
     void revealMain(loadActive().then(setActive));
     const stop = watchStatus(setStatus);
@@ -87,7 +84,6 @@ export function App() {
         total={status.total}
         active={active}
         onActiveChange={setActive}
-        limit={limit}
         tags={tags}
         onTagsChanged={refreshTags}
       />
@@ -99,7 +95,7 @@ export function App() {
       <StatusBar line={status} />
       {rescanError !== null && <Toast text={rescanError} tone="error" />}
       {settingsOpen && (
-        <SettingsSheet limit={limit} onLimitChange={setLimit} onClose={closeSettings}>
+        <SettingsSheet onClose={closeSettings}>
           <TagSettings catalog={tags} onCatalog={setTags} />
         </SettingsSheet>
       )}

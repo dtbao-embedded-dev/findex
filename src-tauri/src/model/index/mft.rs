@@ -103,8 +103,15 @@ mod tests {
             built.journal
         );
         assert!(count > 100_000, "only {count} entries");
-        let hits =
-            search::run(&[built.index], &search::parse("notepad.exe"), 50, &|| false).unwrap();
+        let hits = search::run(
+            &[built.index],
+            &search::parse("notepad.exe"),
+            0,
+            50,
+            &|| false,
+        )
+        .unwrap()
+        .hits;
         let notepad = r"C:\Windows\System32\notepad.exe";
         assert!(
             hits.iter()

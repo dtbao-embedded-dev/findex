@@ -1433,59 +1433,6 @@ button.tag-color:active {
   font-size: 0.75rem;
 }
 
-.setting-number {
-  width: 6.5rem;
-  flex: none;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  background: var(--raised);
-}
-
-.setting-number[aria-invalid="true"] {
-  border-color: var(--danger);
-}
-
-/* A slider is not a text field: none of the field's padding, fill or border. */
-.setting-slider {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  accent-color: var(--accent);
-}
-
-.setting-slider:focus-visible {
-  border: none;
-  box-shadow: none;
-  outline: 0.1875rem solid var(--accent-soft);
-  outline-offset: 0.25rem;
-}
-
-.setting-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-}
-
-.setting-chip {
-  padding: 0.25rem 0.75rem;
-  color: var(--fg);
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-  background: var(--raised);
-  border-radius: 5px;
-}
-
-.setting-chip:hover {
-  background: var(--fill-strong);
-}
-
-.setting-chip[aria-pressed="true"] {
-  color: var(--on-accent);
-  background: var(--accent);
-}
-
 .setting-label {
   font-size: 0.875rem;
   font-weight: 500;

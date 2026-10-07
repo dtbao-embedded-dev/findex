@@ -12,6 +12,7 @@ import {
   latestDetails,
   latestOnly,
   moveSelection,
+  PAGE,
   resultsView,
 } from "./searchPresenter";
 
@@ -21,7 +22,13 @@ function hit(path: string, isDir = false): Hit {
 
 const NO_FILTERS: Filters = { kind: "any", tags: [], exts: [], modifiedFrom: null, modifiedTo: null };
 
-const found = (hits: Hit[], partial = false): Answer => ({ hits, partial, indexBytes: 4096 });
+const found = (hits: Hit[], partial = false): Answer => ({
+  hits,
+  total: hits.length,
+  more: false,
+  partial,
+  indexBytes: 4096,
+});
 
 /** A model search whose answers the test releases in any order, keyed by query and kind. */
 function deferredSearch() {
@@ -41,7 +48,7 @@ function deferredSearch() {
 describe("latestOnly", () => {
   it("drops an older answer that arrives after a newer one", async () => {
     const model = deferredSearch();
-    const search = latestOnly(model.ask, () => 0);
+    const { search } = latestOnly(model.ask, () => 0);
     const first = search("re", NO_FILTERS);
     const second = search("report", NO_FILTERS);
     model.answer("report", [hit("C:\\report.pdf")]);
@@ -52,7 +59,7 @@ describe("latestOnly", () => {
 
   it("drops an answer for filters changed since", async () => {
     const model = deferredSearch();
-    const search = latestOnly(model.ask, () => 0);
+    const { search } = latestOnly(model.ask, () => 0);
     const folders = { ...NO_FILTERS, kind: "folder" as const };
     const first = search("re", NO_FILTERS);
     const second = search("re", folders);
@@ -65,7 +72,7 @@ describe("latestOnly", () => {
   it("passes the filters to the model and says when the answer is partial", async () => {
     let asked: Filters | null = null;
     const tagged = { ...NO_FILTERS, tags: ["work"], modifiedFrom: 5 };
-    const search = latestOnly(async (_query, filters) => {
+    const { search } = latestOnly(async (_query, filters) => {
       asked = filters;
       return found([hit("C:\\proj", true)], true);
     });
@@ -81,19 +88,19 @@ describe("latestOnly", () => {
   it("asks again when Rust cancelled the latest search for an older one", async () => {
     // Two searches can reach Rust out of order; the older then cancels the newer.
     let calls = 0;
-    const search = latestOnly(async () => (++calls === 1 ? null : found([hit("C:\\x.txt")])));
+    const { search } = latestOnly(async () => (++calls === 1 ? null : found([hit("C:\\x.txt")])));
     expect(await search("x", NO_FILTERS)).toMatchObject({ hits: [hit("C:\\x.txt")] });
     expect(calls).toBe(2);
   });
 
   it("gives up after one retry", async () => {
-    const search = latestOnly(async () => null);
+    const { search } = latestOnly(async () => null);
     expect(await search("x", NO_FILTERS)).toBeNull();
   });
 
   it("clears the results for an empty query without asking", async () => {
     let asked = false;
-    const search = latestOnly(async () => {
+    const { search } = latestOnly(async () => {
       asked = true;
       return found([]);
     });
@@ -104,6 +111,8 @@ describe("latestOnly", () => {
       tookMs: null,
       partial: false,
       indexBytes: null,
+      total: null,
+      more: false,
     };
     expect(await search("   ", NO_FILTERS)).toEqual(cleared);
     // A kind or a date alone has no name to look for.
@@ -113,7 +122,7 @@ describe("latestOnly", () => {
 
   it("reports how long the search took", async () => {
     let clock = 100;
-    const search = latestOnly(
+    const { search } = latestOnly(
       async () => {
         clock = 104;
         return found([]);
@@ -124,26 +133,26 @@ describe("latestOnly", () => {
   });
 
   it("shows the latest search's error", async () => {
-    const search = latestOnly(async () => Promise.reject("index unavailable"));
+    const { search } = latestOnly(async () => Promise.reject("index unavailable"));
     expect(await search("a", NO_FILTERS)).toMatchObject({ error: "index unavailable", hits: [] });
   });
 });
 
 describe("describeResults", () => {
-  it("counts results and says when the page is full", () => {
+  it("counts every result there is, not only the rows loaded", () => {
     expect(describeResults(1, 0.4)).toBe("1 result · 1 ms");
-    expect(describeResults(12, 3.6)).toBe("12 results · 4 ms");
-    expect(describeResults(200, 15)).toBe("Top 200 results · 15 ms");
+    expect(describeResults(12, 3.6, { total: 12 })).toBe("12 results · 4 ms");
+    expect(describeResults(500, 15, { total: 12_345, more: true })).toBe("12,345 results · 15 ms");
   });
 
-  it("counts against the limit the settings chose", () => {
-    expect(describeResults(5000, 42, { limit: 5000 })).toBe("Top 5,000 results · 42 ms");
-    expect(describeResults(4999, 42, { limit: 5000 })).toBe("4,999 results · 42 ms");
+  it("says there are more when the count is not known yet", () => {
+    expect(describeResults(500, 42, { total: null, more: true })).toBe("500+ results · 42 ms");
+    expect(describeResults(37, 42, { total: null, more: false })).toBe("37 results · 42 ms");
   });
 
   it("shows how much memory the index holds beside the time", () => {
-    expect(describeResults(200, 12, { indexBytes: 245 * 1024 * 1024 })).toBe(
-      "Top 200 results · 12 ms · 245 MB RAM",
+    expect(describeResults(200, 12, { total: 200, indexBytes: 245 * 1024 * 1024 })).toBe(
+      "200 results · 12 ms · 245 MB RAM",
     );
     expect(describeResults(3, 80, { partial: true, indexBytes: 1536 })).toBe(
       "3 results · 80 ms · 1.5 KB RAM · type more of the name to find older matches",
@@ -154,6 +163,61 @@ describe("describeResults", () => {
     expect(describeResults(3, 80, { partial: true })).toBe(
       "3 results · 80 ms · type more of the name to find older matches",
     );
+  });
+});
+
+describe("paging", () => {
+  type Call = { query: string; offset: number; count: number };
+
+  it("asks for the first page, or for as many rows as are already shown", async () => {
+    const calls: Call[] = [];
+    const { search } = latestOnly(async (query, _filters, offset, count) => {
+      calls.push({ query, offset, count });
+      return found([]);
+    });
+    await search("a", NO_FILTERS);
+    await search("a", NO_FILTERS, 1_700);
+    expect(calls).toEqual([
+      { query: "a", offset: 0, count: PAGE },
+      { query: "a", offset: 0, count: 1_700 },
+    ]);
+  });
+
+  it("carries the total and whether more pages follow", async () => {
+    const { search } = latestOnly(async () => ({ ...found([hit("C:\\a")]), total: 9_000, more: true }));
+    expect(await search("a", NO_FILTERS)).toMatchObject({ total: 9_000, more: true });
+  });
+
+  it("appends the next page after the rows loaded, skipping any already there", async () => {
+    let asked: Call | null = null;
+    const loaded = [hit("C:\\a"), hit("C:\\b")];
+    const { more } = latestOnly(async (query, _filters, offset, count) => {
+      asked = { query, offset, count };
+      return { ...found([hit("C:\\b"), hit("C:\\c")]), total: 3, more: false };
+    });
+    expect(await more("x", NO_FILTERS, loaded)).toEqual({
+      hits: [hit("C:\\a"), hit("C:\\b"), hit("C:\\c")],
+      total: 3,
+      more: false,
+      partial: false,
+    });
+    expect(asked).toEqual({ query: "x", offset: 2, count: PAGE });
+  });
+
+  it("drops a page that arrives after a newer search started", async () => {
+    let release: (answer: Answer) => void = () => {};
+    const pager = latestOnly((query) =>
+      query === "old" ? new Promise<Answer>((r) => (release = r)) : Promise.resolve(found([])),
+    );
+    const page = pager.more("old", NO_FILTERS, [hit("C:\\a")]);
+    await pager.search("new", NO_FILTERS);
+    release(found([hit("C:\\z")]));
+    expect(await page).toBeNull();
+  });
+
+  it("drops a page Rust cancelled or failed, keeping the rows loaded", async () => {
+    expect(await latestOnly(async () => null).more("x", NO_FILTERS, [])).toBeNull();
+    expect(await latestOnly(async () => Promise.reject("busy")).more("x", NO_FILTERS, [])).toBeNull();
   });
 });
 
