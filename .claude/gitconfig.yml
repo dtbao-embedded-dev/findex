@@ -1,0 +1,9 @@
+# skill-support-commit - per-project git automation config
+# Booleans: true/false. List: comma-separated. All keys optional (defaults shown).
+
+auto_push: false  # run `git push` ONCE after all commits succeed (commit-only if false)
+auto_skip_answer_issue: true  # false = ask once for issue refs before committing
+
+push_remote: origin  # remote name used for push
+push_set_upstream: true  # add -u <remote> <branch> when the branch has no upstream
+protected_branches: main, master, developing  # NEVER auto-push these (commit only on these branches)

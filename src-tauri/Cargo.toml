@@ -1,0 +1,44 @@
+[package]
+name = "findex"
+version = "0.1.0"
+description = "A desktop launcher that finds files and folders by name, searches keywords inside file contents, tags folders, and opens results in a terminal or any app."
+authors = ["dtbao"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77.2"
+
+# main.rs only calls into the library, so tests link the app's code directly.
+[lib]
+name = "findex_lib"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+# Markers of unfinished work, invisible in a GUI binary with no console.
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+# Production code returns AppError instead of panicking; clippy.toml exempts tests.
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

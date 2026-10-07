@@ -1,0 +1,5 @@
+# Pinned so a new stable release cannot turn CI red with a lint nobody changed.
+# Bump it together with `toolchain:` in .github/workflows/ci.yml and release.yml.
+[toolchain]
+channel = "1.94.0"
+components = ["rustfmt", "clippy"]

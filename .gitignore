@@ -1,0 +1,38 @@
+# Build output
+/dist/
+/build/*
+!/build/icon.ico
+/out/
+/release/
+/target/
+/src-tauri/target/
+/src-tauri/gen/schemas/
+*.tsbuildinfo
+*.o
+*.elf
+*.bin
+*.hex
+
+# Dependencies
+/node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local secrets — never commit these
+.env
+.env.*
+!.env.example

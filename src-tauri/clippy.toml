@@ -1,0 +1,4 @@
+# Lint levels live in Cargo.toml [lints]; this file only tunes how they behave.
+# Production code may not unwrap or expect; test assertions may.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
