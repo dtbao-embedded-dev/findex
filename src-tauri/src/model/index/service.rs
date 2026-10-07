@@ -189,6 +189,12 @@ impl IndexService {
         move || self.query.load(Ordering::Relaxed) != mine
     }
 
+    /// Stops every search still running, as a newer search would, without starting
+    /// one: for a content scan nobody waits for any more.
+    pub fn cancel_searches(&self) {
+        self.query.fetch_add(1, Ordering::SeqCst);
+    }
+
     /// Searches every ready drive for `count` results from rank `offset`. Returns
     /// `None` when `cancelled` reports, before it finished, that a newer search
     /// replaced this one, so the caller can drop it.

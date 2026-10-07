@@ -1,7 +1,6 @@
 import { searchContents, type Batch } from "../model/contents";
-import type { Filters, Hit } from "../model/search";
+import { cancelSearch, type Filters, type Hit } from "../model/search";
 import {
-  appendPage,
   canSearch,
   CLEARED,
   type ScanProgress,
@@ -24,19 +23,34 @@ const REDRAW_MS = 100;
  * restarts the wait, so a search starts once typing pauses rather than reading the
  * disk for every letter. The results grow as batches arrive; the list is redrawn at
  * most every 100 ms while the scan runs, and once more when it ends. `stop` drops
- * what is still on its way, as when the search goes back to names.
+ * what is still on its way, as when the search goes back to names. Stopping, or
+ * clearing the field, also stops a scan still running in Rust, which would otherwise
+ * read the drive on with nobody waiting.
  */
 export function latestScan(
   ask: Ask = searchContents,
   {
     now = () => performance.now(),
     wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-  }: { now?: () => number; wait?: (ms: number) => Promise<void> } = {},
+    cancel = cancelSearch,
+  }: {
+    now?: () => number;
+    wait?: (ms: number) => Promise<void>;
+    cancel?: () => Promise<void>;
+  } = {},
 ): {
   start: (query: string, filters: Filters, onUpdate: (update: ScanUpdate) => void) => Promise<void>;
   stop: () => void;
 } {
   let latest = 0;
+  // The scan Rust is running for us, if any; only that one needs stopping there.
+  let running: number | null = null;
+  const halt = () => {
+    if (running !== null) {
+      running = null;
+      void cancel().catch(() => {});
+    }
+  };
   const start = async (
     query: string,
     filters: Filters,
@@ -44,6 +58,7 @@ export function latestScan(
   ): Promise<void> => {
     const mine = ++latest;
     if (!canSearch(query, filters)) {
+      halt();
       onUpdate(CLEARED);
       return;
     }
@@ -54,14 +69,22 @@ export function latestScan(
       return;
     }
     const started = now();
-    let hits: Hit[] = [];
+    // Grown in place and copied only when drawn: a long scan sends thousands of batches.
+    const hits: Hit[] = [];
+    const seen = new Set<string>();
     let drawn = -Infinity;
+    running = mine;
     try {
       await ask(query, filters, (batch) => {
         if (mine !== latest) {
           return;
         }
-        hits = appendPage(hits, batch.hits);
+        for (const hit of batch.hits) {
+          if (!seen.has(hit.path)) {
+            seen.add(hit.path);
+            hits.push(hit);
+          }
+        }
         const at = now();
         if (!batch.done && at - drawn < REDRAW_MS) {
           return;
@@ -69,7 +92,7 @@ export function latestScan(
         drawn = at;
         const scan = { filesRead: batch.filesRead, filesTotal: batch.filesTotal, done: batch.done };
         onUpdate({
-          hits,
+          hits: hits.slice(),
           scan,
           total: batch.done ? hits.length : null,
           tookMs: batch.done ? at - started : null,
@@ -79,10 +102,15 @@ export function latestScan(
       if (mine === latest) {
         onUpdate({ ...CLEARED, error: String(err) });
       }
+    } finally {
+      if (running === mine) {
+        running = null;
+      }
     }
   };
   const stop = () => {
     latest += 1;
+    halt();
   };
   return { start, stop };
 }

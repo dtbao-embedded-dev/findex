@@ -51,6 +51,11 @@ export function searchNames(
   return invoke<Answer | null>("search_names", { query, filters, offset, count });
 }
 
+/** Stops the search running in Rust, such as a content scan nobody waits for. */
+export function cancelSearch(): Promise<void> {
+  return invoke<void>("cancel_search");
+}
+
 /** Shows the path selected in File Explorer. */
 export function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });

@@ -92,7 +92,7 @@ describe("latestScan", () => {
   it("drops every batch once stopped, as when the search goes back to names", async () => {
     const model = manualScan();
     const updates: ScanUpdate[] = [];
-    const scan = latestScan(model.ask, noWait);
+    const scan = latestScan(model.ask, { ...noWait, cancel: async () => {} });
     void scan.start("x", NO_FILTERS, (u) => updates.push(u));
     await Promise.resolve();
     scan.stop();
@@ -114,10 +114,35 @@ describe("latestScan", () => {
     expect(model.calls.map((c) => c.query)).toEqual(["uart"]);
   });
 
+  it("stops a running scan in Rust too, so it does not read on in the background", async () => {
+    let cancelled = 0;
+    const model = manualScan();
+    const scan = latestScan(model.ask, { ...noWait, cancel: async () => void cancelled++ });
+    // Nothing runs yet: stopping asks Rust nothing, so a name search is never cancelled.
+    scan.stop();
+    expect(cancelled).toBe(0);
+    void scan.start("x", NO_FILTERS, () => {});
+    await Promise.resolve();
+    // Clearing the field leaves nothing to search: the running scan must end as well.
+    await scan.start("", NO_FILTERS, () => {});
+    expect(cancelled).toBe(1);
+    void scan.start("y", NO_FILTERS, () => {});
+    await Promise.resolve();
+    scan.stop();
+    expect(cancelled).toBe(2);
+    // A scan that ended needs no stopping.
+    model.calls[1]!.finish();
+    await Promise.resolve();
+    scan.stop();
+    expect(cancelled).toBe(2);
+  });
+
   it("clears without asking when there is nothing to look for", async () => {
     const model = manualScan();
     const updates: ScanUpdate[] = [];
-    await latestScan(model.ask, noWait).start("  ", NO_FILTERS, (u) => updates.push(u));
+    await latestScan(model.ask, { ...noWait, cancel: async () => {} }).start("  ", NO_FILTERS, (u) =>
+      updates.push(u),
+    );
     expect(model.calls).toHaveLength(0);
     expect(updates).toEqual([expect.objectContaining({ hits: [], scan: null, tookMs: null })]);
   });

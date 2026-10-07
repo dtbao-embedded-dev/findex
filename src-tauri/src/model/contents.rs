@@ -174,7 +174,8 @@ pub struct Found {
 #[serde(rename_all = "camelCase")]
 pub struct Batch {
     pub hits: Vec<Found>,
-    /// Files whose contents were read so far.
+    /// Files looked at so far, read or skipped (too large, binary, locked, or
+    /// outside the date range).
     pub files_read: usize,
     /// Files to look at in all; 0 while the name matches are being sent.
     pub files_total: usize,
@@ -292,9 +293,7 @@ fn read_all(
             if cancelled() {
                 return;
             }
-            let Some(found) = look_in(path, finder, range.as_ref()) else {
-                return;
-            };
+            let found = look_in(path, finder, range.as_ref()).flatten();
             read.fetch_add(1, Ordering::Relaxed);
             let mut pending = pending.lock().unwrap_or_else(PoisonError::into_inner);
             pending.0.extend(found);
@@ -576,8 +575,9 @@ mod tests {
         let batches = run(&db, &index, "secret", &Filters::default());
         assert_eq!(found(&batches), [("ok.md".into(), Some(1))]);
         let last = batches.last().unwrap();
-        // The JPEG is not a text type, so it was never a candidate.
-        assert_eq!((last.files_read, last.files_total), (1, 3));
+        // The JPEG is not a text type, so it was never a candidate; the skipped files
+        // still count as looked at, so the progress reaches the total.
+        assert_eq!((last.files_read, last.files_total), (3, 3));
     }
 
     #[test]

@@ -171,6 +171,13 @@ pub async fn search_contents(
     .map_err(|err| AppError::Invalid(format!("the content search stopped: {err}")))?
 }
 
+/// Stops the search running in Rust, such as a content scan the user left.
+#[tauri::command]
+pub fn cancel_search(index: State<'_, Arc<IndexService>>) -> AppResult<()> {
+    index.cancel_searches();
+    Ok(())
+}
+
 /// Type, size, date and tags for the results on screen. Off the async runtime: it
 /// waits on the disk.
 #[tauri::command]

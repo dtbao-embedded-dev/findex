@@ -173,7 +173,10 @@
   read", then "37 results · 52,310 files read · 4.2 s".
   - **Typing:** the search starts once typing pauses for a quarter of a second, and
     a new search stops the old one; its results never come back. Going back to Name
-    stops it too. A content search is not re-run on its own as files change.
+    or clearing the field stops it too, so the drive is not read on in the
+    background. A content search is not re-run on its own as files change.
+  - **Progress:** files skipped (too large, binary, locked, outside the date range)
+    count as looked at, so the count reaches the total.
   - **Measured on E: (development build, unelevated):** 49,585 C files read in 37 s
     the first time and 3.3 s once the disk cache held them; the first of 617 matches
     showed after a second.
