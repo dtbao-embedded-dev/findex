@@ -13,6 +13,8 @@ export type Kind = "any" | "file" | "folder";
 export type Filters = {
   kind: Kind;
   tags: string[];
+  /** File types to keep, by extension without the dot (`c`, `h`); any of them matches. */
+  exts: string[];
   /** Last changed at or after, in ms since the epoch. */
   modifiedFrom: number | null;
   /** Last changed before, in ms since the epoch. */

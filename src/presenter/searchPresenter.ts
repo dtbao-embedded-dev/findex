@@ -42,12 +42,16 @@ const CLEARED: SearchUpdate = {
   indexBytes: null,
 };
 
+/** The filters that can stand in for a typed name. */
+type Selecting = { tags: string[]; exts?: string[] };
+
 /**
  * Whether there is anything to ask: the index holds names only, so a search needs a
- * name; a tag alone also works, listing the folders that carry it.
+ * name; a tag alone also works, listing the folders that carry it, and so does a file
+ * type, listing every name of that type.
  */
-export function canSearch(query: string, filters: { tags: string[] }): boolean {
-  return query.trim() !== "" || filters.tags.length > 0;
+export function canSearch(query: string, filters: Selecting): boolean {
+  return query.trim() !== "" || filters.tags.length > 0 || (filters.exts?.length ?? 0) > 0;
 }
 
 /**
@@ -56,7 +60,7 @@ export function canSearch(query: string, filters: { tags: string[] }): boolean {
  */
 export function resultsView(
   state: Pick<SearchState, "query" | "hits" | "error" | "tookMs">,
-  filters: { tags: string[] },
+  filters: Selecting,
 ): "list" | "error" | "empty" | "none" {
   if (state.error !== null) {
     return "error";

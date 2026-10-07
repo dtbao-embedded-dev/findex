@@ -114,6 +114,10 @@
     days, This month, This year, or a custom day, month, year or range (either end
     may be left open). Days follow your local time.
   - **Kind:** All, Files or Folders, overriding a typed `type:`.
+  - **Type:** file types to keep. Pick a group (Code, Documents, Images, Archives) or
+    type extensions such as `.c, .h`; a typed `ext:` still works and adds to them.
+    Searching `code` with `.c` lists only C files whose name holds "code"; a type
+    alone lists every file of that type.
   - **Tags:** folders carrying every tag picked, from the filter's menu or the
     sidebar; a tag chip on a result turns its filter on or off.
   - **How dates are read:** the index holds names only, so dates are read from the
@@ -122,7 +126,8 @@
     more of the name. A one-letter search checked against the last day took under a
     second on 1.2 million names.
   - **Without a name:** a date or kind alone lists nothing, since there is no name to
-    look for; a tag alone lists the folders carrying it.
+    look for; a tag alone lists the folders carrying it, and a type alone every file of
+    that type.
   - **Esc:** the first Esc clears the name, a second one clears the filters.
   - **While files change:** a search with a date filter is not re-run on its own as
     files change, since each run reads thousands of dates from the disk; typing or

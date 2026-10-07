@@ -19,7 +19,7 @@ function hit(path: string, isDir = false): Hit {
   return { name: path.slice(path.lastIndexOf("\\") + 1), path, isDir };
 }
 
-const NO_FILTERS: Filters = { kind: "any", tags: [], modifiedFrom: null, modifiedTo: null };
+const NO_FILTERS: Filters = { kind: "any", tags: [], exts: [], modifiedFrom: null, modifiedTo: null };
 
 const found = (hits: Hit[], partial = false): Answer => ({ hits, partial, indexBytes: 4096 });
 
@@ -177,6 +177,9 @@ describe("canSearch", () => {
     expect(canSearch("  ", { tags: [] })).toBe(false);
     expect(canSearch("", { tags: ["work"] })).toBe(true);
     expect(canSearch("rep", { tags: [] })).toBe(true);
+    // A file type alone lists every name of that type, as a typed ext: does.
+    expect(canSearch("", { tags: [], exts: ["c"] })).toBe(true);
+    expect(canSearch("", { tags: [], exts: [] })).toBe(false);
   });
 });
 

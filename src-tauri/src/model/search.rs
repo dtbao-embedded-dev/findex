@@ -46,6 +46,8 @@ pub enum Kind {
 pub struct Filters {
     pub kind: Kind,
     pub tags: Vec<String>,
+    /// File types to keep, by extension (`c`, `.h`); any of them matches.
+    pub exts: Vec<String>,
     /// Last changed at or after, in milliseconds since the Unix epoch.
     pub modified_from: Option<i64>,
     /// Last changed before, in milliseconds since the Unix epoch.
@@ -79,12 +81,19 @@ impl Query {
         &self.tags
     }
 
-    /// Adds the filter bar's choices: its kind replaces a typed `type:`, and its tags
-    /// join the typed `tag:` ones.
+    /// Adds the filter bar's choices: its kind replaces a typed `type:`, its tags join
+    /// the typed `tag:` ones, and its file types join the typed `ext:` ones.
     pub fn narrow(&mut self, filters: &Filters) {
         if filters.kind != Kind::Any {
             self.kind = filters.kind;
         }
+        self.exts.extend(
+            filters
+                .exts
+                .iter()
+                .map(|ext| ext.trim().trim_start_matches('.').to_lowercase())
+                .filter(|ext| !ext.is_empty()),
+        );
         self.tags.extend(
             filters
                 .tags
@@ -512,13 +521,44 @@ mod tests {
     }
 
     #[test]
+    fn the_type_filter_keeps_only_its_extensions() {
+        let volumes = [index(&[
+            (10, ROOT, "code.c", false),
+            (11, ROOT, "code.H", false),
+            (12, ROOT, "code.txt", false),
+            (13, ROOT, "code.pdf", false),
+            (14, ROOT, "code", true),
+        ])];
+        let by_type = |text: &str, exts: &[&str]| {
+            let mut query = parse(text);
+            query.narrow(&Filters {
+                exts: exts.iter().map(|e| (*e).to_owned()).collect(),
+                ..Filters::default()
+            });
+            let mut names: Vec<String> = run(&volumes, &query, DEFAULT_LIMIT, &|| false)
+                .unwrap()
+                .into_iter()
+                .map(|hit| hit.name)
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(by_type("code", &["c", ".H", " "]), ["code.H", "code.c"]);
+        // A typed ext: and the filter's types are both accepted.
+        assert_eq!(by_type("code ext:pdf", &["c"]), ["code.c", "code.pdf"]);
+        // The filter alone lists every name of that type.
+        assert_eq!(by_type("", &["txt"]), ["code.txt"]);
+    }
+
+    #[test]
     fn filters_arrive_from_the_frontend_in_camel_case() {
         let filters: Filters = serde_json::from_str(
-            r#"{"kind":"file","tags":["work"],"modifiedFrom":10,"modifiedTo":null}"#,
+            r#"{"kind":"file","tags":["work"],"exts":["c"],"modifiedFrom":10,"modifiedTo":null}"#,
         )
         .unwrap();
         assert_eq!(filters.kind, Kind::File);
         assert_eq!(filters.tags, ["work"]);
+        assert_eq!(filters.exts, ["c"]);
         assert_eq!(filters.modified(), dated::Range::new(Some(10), None));
         let empty: Filters = serde_json::from_str("{}").unwrap();
         assert_eq!(empty, Filters::default());

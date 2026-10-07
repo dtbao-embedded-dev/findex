@@ -3,9 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   dateRange,
   describeDate,
+  describeExts,
+  EXT_GROUPS,
+  formatExts,
+  groupOn,
   initialFilters,
   isFiltered,
+  parseExts,
   toFilters,
+  toggleGroup,
   toggleTag,
   type DateChoice,
 } from "./filterPresenter";
@@ -79,18 +85,20 @@ describe("describeDate", () => {
 describe("toFilters", () => {
   it("turns the filter bar into what Rust narrows by", () => {
     const filters = toFilters(
-      { date: { kind: "today" }, kind: "folder", tags: ["work"] },
+      { date: { kind: "today" }, kind: "folder", tags: ["work"], exts: ["c"] },
       NOW,
     );
     expect(filters).toEqual({
       kind: "folder",
       tags: ["work"],
+      exts: ["c"],
       modifiedFrom: at(2026, 9, 7),
       modifiedTo: at(2026, 9, 8),
     });
     expect(toFilters(initialFilters, NOW)).toEqual({
       kind: "any",
       tags: [],
+      exts: [],
       modifiedFrom: null,
       modifiedTo: null,
     });
@@ -102,6 +110,7 @@ describe("isFiltered", () => {
     expect(isFiltered(initialFilters)).toBe(false);
     expect(isFiltered({ ...initialFilters, kind: "file" })).toBe(true);
     expect(isFiltered({ ...initialFilters, tags: ["x"] })).toBe(true);
+    expect(isFiltered({ ...initialFilters, exts: ["c"] })).toBe(true);
     expect(isFiltered({ ...initialFilters, date: { kind: "thisYear" } })).toBe(true);
     // A custom date still being typed narrows nothing yet.
     expect(isFiltered({ ...initialFilters, date: { kind: "day", date: "" } })).toBe(false);
@@ -112,5 +121,36 @@ describe("toggleTag", () => {
   it("adds a tag that is off and removes one that is on", () => {
     expect(toggleTag(["a"], "b")).toEqual(["a", "b"]);
     expect(toggleTag(["a", "b"], "a")).toEqual(["b"]);
+  });
+});
+
+describe("the type filter", () => {
+  const code = EXT_GROUPS.find((g) => g.label === "Code")!;
+
+  it("reads typed extensions with or without dots, in any separator and case", () => {
+    expect(parseExts(".c, h ;CPP")).toEqual(["c", "h", "cpp"]);
+    expect(parseExts("  ")).toEqual([]);
+    expect(parseExts("c .c C")).toEqual(["c"]);
+  });
+
+  it("writes them back for the field", () => {
+    expect(formatExts(["c", "h"])).toBe(".c, .h");
+    expect(formatExts([])).toBe("");
+  });
+
+  it("turns a group on and off as a whole, keeping other types", () => {
+    const on = toggleGroup(["md"], code);
+    expect(groupOn(on, code)).toBe(true);
+    expect(on[0]).toBe("md");
+    expect(toggleGroup(on, code)).toEqual(["md"]);
+    // A group only partly picked is completed, not removed.
+    expect(groupOn(toggleGroup(["c"], code), code)).toBe(true);
+  });
+
+  it("names the filter button by the group or the types picked", () => {
+    expect(describeExts([])).toBe("Type");
+    expect(describeExts(code.exts)).toBe("Code");
+    expect(describeExts(["c"])).toBe(".c");
+    expect(describeExts(["c", "h", "s", "ld", "mk"])).toBe(".c, .h, .s +2");
   });
 });

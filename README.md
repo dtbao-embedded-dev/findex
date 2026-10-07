@@ -54,8 +54,9 @@ The app window opens; edits under src/ reload it.
 - Type part of a name: every word must appear in it. `ext:pdf;docx`, `type:file`,
   `type:folder` and `tag:work` narrow the search from the field itself.
 - The filter bar under the field narrows by when a result last changed (Today, Last
-  7 days, This year… or a custom day, month, year or range), by files or folders, and
-  by the tags a folder carries. A tag can also be picked in the sidebar.
+  7 days, This year… or a custom day, month, year or range), by files or folders, by
+  file type (a group such as Code, or extensions such as `.c, .h`), and by the tags a
+  folder carries. A tag can also be picked in the sidebar.
 - The index holds names only, so a date filter reads dates from the disk for the best
   name matches. When the line above the results says so, type more of the name.
 - Right-click a folder and choose Tags… to give it a preset tag (Working, Doc, Important, …) or one of your own.
