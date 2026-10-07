@@ -597,6 +597,111 @@ button:focus-visible {
   min-width: 0;
 }
 
+/* Recent searches: a solid card that grows out of the field, like the drive menu. */
+.history-menu {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  left: 0;
+  z-index: 10;
+  padding: 0.375rem;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+  transform-origin: top center;
+  animation: pop-in 200ms var(--ease) both;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem 0.375rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.history-clear {
+  padding: 0.125rem 0.375rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: transparent;
+}
+
+.history-clear:hover {
+  background: var(--accent-soft);
+}
+
+.history-list {
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 2.125rem;
+  padding: 0 0.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.history-item.is-active {
+  background: var(--accent-soft);
+}
+
+.history-glyph {
+  flex: none;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--muted);
+}
+
+.history-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The remove button shows on the row it belongs to, so the list stays calm. */
+.history-forget {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  opacity: 0;
+}
+
+.history-item.is-active .history-forget,
+.history-forget:focus-visible {
+  opacity: 1;
+}
+
+.history-forget:hover {
+  color: var(--fg);
+  background: var(--fill-strong);
+}
+
+.history-forget svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
 /* A square tool the height of the field, quiet until hovered. */
 .search-tool {
   display: grid;
@@ -1728,6 +1833,7 @@ button.tag-color:active {
   }
 
   .drive-menu,
+  .history-menu,
   .filter-panel,
   .sheet,
   .context-menu,

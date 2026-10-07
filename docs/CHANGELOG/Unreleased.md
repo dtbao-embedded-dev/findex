@@ -212,6 +212,12 @@
   opens as its own VS Code window, a file in VS Code's current window. Code is found
   beside the `code` command on PATH, else in the default per-user or machine-wide
   install, and starts with your normal rights, like the terminal.
+- **Recent searches** drop down from the search field when it is empty and has
+  focus. Pick one with a click, or with ↑/↓ and Enter; Esc puts the list away, the ×
+  on a row forgets that search, and **Clear** forgets them all. A search is remembered
+  once it has stayed on screen with results for 1.5 s, or when a result's menu was
+  used; typing on from the newest entry ("rea", then "readme") replaces it rather
+  than adding both. The last 20 are kept across restarts.
 
 ### Changed
 

@@ -17,6 +17,13 @@ import {
   resultsView,
 } from "../presenter/searchPresenter";
 import { describeScan, latestScan } from "../presenter/contentPresenter";
+import {
+  forget,
+  loadHistory,
+  remember,
+  REMEMBER_AFTER_MS,
+  saveHistory,
+} from "../presenter/historyPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
 import {
@@ -32,6 +39,7 @@ import { keepKnown, tagColors } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
 import { DrivePicker } from "./DrivePicker";
 import { FilterBar } from "./FilterBar";
+import { HistoryMenu } from "./HistoryMenu";
 import { ResultList } from "./ResultList";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
@@ -112,6 +120,43 @@ export function SearchView({
   const [editing, setEditing] = useState<Editing | null>(null);
   // Set when the keyboard opened the menu, so the field's own menu stays shut.
   const menuByKey = useRef(false);
+  // Recent searches, offered from the empty field while it has focus; Esc puts
+  // them away until the field is left or typed in.
+  const [history, setHistory] = useState<string[]>([]);
+  const historyNow = useRef(history);
+  const [historyActive, setHistoryActive] = useState(-1);
+  const [focused, setFocused] = useState(false);
+  const [historyShut, setHistoryShut] = useState(false);
+  const historyOpen = focused && !historyShut && state.query === "" && history.length > 0;
+
+  const keepHistory = (next: string[]) => {
+    if (next !== historyNow.current) {
+      historyNow.current = next;
+      setHistory(next);
+      void saveHistory(next);
+    }
+  };
+
+  useEffect(() => {
+    void loadHistory().then((saved) => {
+      historyNow.current = saved;
+      setHistory(saved);
+    });
+    setFocused(document.activeElement === field.current);
+  }, []);
+
+  // A query that stays on screen with results is remembered; so is one a result was
+  // acted on from (see `pick`).
+  useEffect(() => {
+    if (state.query.trim() === "" || state.hits.length === 0) {
+      return;
+    }
+    const timer = setTimeout(
+      () => keepHistory(remember(historyNow.current, state.query)),
+      REMEMBER_AFTER_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [state.query, state.hits.length > 0]);
 
   const show = (text: string, tone: Notice["tone"]) =>
     setNotice((n) => ({ text, tone, id: (n?.id ?? 0) + 1 }));
@@ -293,6 +338,7 @@ export function SearchView({
   const pick = (action: MenuAction) => {
     const hit = menu?.hit;
     closeMenu();
+    keepHistory(remember(historyNow.current, state.query));
     if (hit && menu && action === "tags") {
       setEditing({ at: menu.at, folder: hit, tags: details[hit.path]?.tags ?? [] });
     } else if (hit) {
@@ -306,7 +352,33 @@ export function SearchView({
     }
   };
 
+  const pickHistory = (entry: string) => {
+    setHistoryActive(-1);
+    run(entry);
+  };
+
+  // While recent searches are offered the field is empty and there are no results,
+  // so the arrows, Enter and Esc work on the searches instead.
+  const onHistoryKey = (event: KeyboardEvent<HTMLInputElement>): boolean => {
+    const step = { ArrowDown: 1, ArrowUp: -1 }[event.key as "ArrowDown" | "ArrowUp"];
+    if (step !== undefined) {
+      setHistoryActive((at) => moveSelection(at < 0 && step < 0 ? 0 : at, step, history.length));
+    } else if (event.key === "Enter" && history[historyActive] !== undefined) {
+      pickHistory(history[historyActive]);
+    } else if (event.key === "Escape") {
+      setHistoryShut(true);
+      setHistoryActive(-1);
+    } else {
+      return false;
+    }
+    event.preventDefault();
+    return true;
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (historyOpen && onHistoryKey(event)) {
+      return;
+    }
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.preventDefault();
       menuByKey.current = true;
@@ -350,7 +422,7 @@ export function SearchView({
                 field.current?.focus();
               }}
             />
-            <label className="search-field">
+            <div className="search-field">
               <SearchGlyph />
               <input
                 ref={field}
@@ -360,9 +432,23 @@ export function SearchView({
                 autoComplete="off"
                 placeholder={searchPlaceholder(active, filters.mode)}
                 aria-label="Search files and folders"
-                aria-controls="results"
+                aria-controls={historyOpen ? "search-history" : "results"}
+                aria-expanded={historyOpen}
+                aria-activedescendant={
+                  historyOpen && historyActive >= 0 ? `history-${historyActive}` : undefined
+                }
                 value={state.query}
-                onChange={(event) => run(event.target.value)}
+                onChange={(event) => {
+                  setHistoryShut(false);
+                  setHistoryActive(-1);
+                  run(event.target.value);
+                }}
+                onFocus={() => setFocused(true)}
+                onBlur={() => {
+                  setFocused(false);
+                  setHistoryShut(false);
+                  setHistoryActive(-1);
+                }}
                 onKeyDown={onKeyDown}
                 onContextMenu={(event) => {
                   if (menuByKey.current) {
@@ -371,7 +457,17 @@ export function SearchView({
                   }
                 }}
               />
-            </label>
+              {historyOpen && (
+                <HistoryMenu
+                  entries={history}
+                  active={historyActive}
+                  onPick={pickHistory}
+                  onForget={(entry) => keepHistory(forget(historyNow.current, entry))}
+                  onClear={() => keepHistory([])}
+                  onHover={setHistoryActive}
+                />
+              )}
+            </div>
             <button
               type="button"
               className={busy ? "search-tool is-busy" : "search-tool"}
