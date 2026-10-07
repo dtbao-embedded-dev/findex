@@ -75,6 +75,9 @@
   - **If you say No:** it still opens and indexes by folder scan.
   - **`pnpm tauri dev`:** never relaunched, since that would stop the dev server. Run
     the terminal as administrator instead.
+- Right-clicking no longer opens the browser's own menu (Back, Reload, Inspect…), which
+  belongs to a web page rather than a desktop app. Text fields keep it, for cut, copy
+  and paste.
 - The status bar explains a folder scan in plain words. When rights are missing it
   says "open Findex as administrator for instant search and live updates" instead of
   "Access is denied (os error 5)".
