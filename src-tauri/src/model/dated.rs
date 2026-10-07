@@ -59,6 +59,11 @@ pub fn keep(
         let inside: Vec<bool> = batch
             .par_iter()
             .map(|hit| {
+                // Once replaced, the rest of the batch is skipped: a slow disk must
+                // not hold the pool for a search nobody waits for.
+                if cancelled() {
+                    return false;
+                }
                 std::fs::metadata(&hit.path)
                     .ok()
                     .and_then(|meta| details::modified_ms(&meta))
@@ -71,6 +76,9 @@ pub fn keep(
                 .zip(inside)
                 .filter_map(|(hit, inside)| inside.then_some(hit)),
         );
+    }
+    if cancelled() {
+        return None;
     }
     kept.truncate(limit);
     Some(kept)
