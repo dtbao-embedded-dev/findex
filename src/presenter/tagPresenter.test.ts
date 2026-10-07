@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TagCount } from "../model/tags";
-import { addTagTo, loadTags, removeTagFrom, suggestTags, tagQuery } from "./tagPresenter";
+import { addTagTo, loadTags, removeTagFrom, suggestTags } from "./tagPresenter";
 
 describe("addTagTo", () => {
   it("adds the typed tag and returns the folder's tags", async () => {
@@ -61,9 +61,5 @@ describe("tags in use", () => {
     expect(suggestTags(all, ["work"], "")).toEqual(["fw", "firmware"]);
     expect(suggestTags(all, [], "#F")).toEqual(["fw", "firmware"]);
     expect(suggestTags(all, ["fw"], "fi")).toEqual(["firmware"]);
-  });
-
-  it("searches a tag with the tag filter", () => {
-    expect(tagQuery("work")).toBe("tag:work");
   });
 });

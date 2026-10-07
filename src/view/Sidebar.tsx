@@ -8,6 +8,9 @@ type Props = {
   onActiveChange: (active: string | null, error: string | null) => void;
   /** The tags in use, most used first. */
   tags: TagCount[];
+  /** The tags the search is filtered by, shown as selected. */
+  selectedTags: string[];
+  /** Turns the filter by `tag` on or off. */
   onTag: (tag: string) => void;
 };
 
@@ -15,7 +18,7 @@ type Props = {
  * The sidebar, as in Finder: where the search looks (the drive), then the tags
  * folders carry. A heavier material than the content, so it reads as structure.
  */
-export function Sidebar({ active, onActiveChange, tags, onTag }: Props) {
+export function Sidebar({ active, onActiveChange, tags, selectedTags, onTag }: Props) {
   return (
     <nav className="sidebar" aria-label="Sidebar">
       <section className="sidebar-section">
@@ -33,7 +36,8 @@ export function Sidebar({ active, onActiveChange, tags, onTag }: Props) {
                 <button
                   type="button"
                   className="sidebar-item"
-                  title={`Show the ${t.folders} folder${t.folders === 1 ? "" : "s"} tagged ${t.tag}`}
+                  aria-pressed={selectedTags.includes(t.tag)}
+                  title={`Filter by the ${t.folders} folder${t.folders === 1 ? "" : "s"} tagged ${t.tag}`}
                   onClick={() => onTag(t.tag)}
                 >
                   <span className="tag-mark" aria-hidden="true">

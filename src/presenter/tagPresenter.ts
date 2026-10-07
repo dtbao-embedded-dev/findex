@@ -54,8 +54,3 @@ export function suggestTags(all: TagCount[], current: string[], typed: string): 
     .filter((tag) => !current.includes(tag) && tag.startsWith(start))
     .slice(0, 8);
 }
-
-/** The search that lists the folders carrying `tag`. */
-export function tagQuery(tag: string): string {
-  return `tag:${tag}`;
-}

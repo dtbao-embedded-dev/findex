@@ -9,11 +9,11 @@ use crate::model::about::{self, About};
 use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
-use crate::model::find;
+use crate::model::find::{self, Answer};
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
-use crate::model::search::{Hit, DEFAULT_LIMIT};
+use crate::model::search::{Filters, DEFAULT_LIMIT};
 use crate::model::tags::{self, TagCount};
 use crate::splash;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -100,18 +100,27 @@ pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
     Ok(index.status())
 }
 
-/// Runs off the async runtime: a query is CPU work across every core. Resolves to
-/// null when a newer query replaced this one. `tag:` queries read the tags table.
+/// Runs off the async runtime: a query is CPU work across every core, and a date
+/// filter waits on the disk. Resolves to null when a newer query replaced this one.
+/// Tags are read from the tags table.
 #[tauri::command]
 pub async fn search_names(
     app: AppHandle,
     query: String,
+    filters: Option<Filters>,
     limit: Option<usize>,
-) -> AppResult<Option<Vec<Hit>>> {
+) -> AppResult<Option<Answer>> {
     tauri::async_runtime::spawn_blocking(move || {
         let db = app.state::<Db>();
         let index = app.state::<Arc<IndexService>>();
-        find::search(&db, &index, &query, limit.unwrap_or(DEFAULT_LIMIT))
+        let filters = filters.unwrap_or_default();
+        find::search(
+            &db,
+            &index,
+            &query,
+            &filters,
+            limit.unwrap_or(DEFAULT_LIMIT),
+        )
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))?

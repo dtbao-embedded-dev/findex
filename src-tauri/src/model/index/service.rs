@@ -23,7 +23,7 @@ use crate::model::db::Db;
 use crate::model::drives::{self, Method};
 use crate::model::index::store::VolumeIndex;
 use crate::model::index::{mft, snapshot, walk, watch};
-use crate::model::search::{self, Hit};
+use crate::model::search::{self, Hit, Query};
 use crate::model::win32::{self, Journal};
 
 /// How the service reports progress; the app turns it into an `index-status` event.
@@ -86,6 +86,15 @@ impl IndexService {
     pub fn with_snapshots(dir: PathBuf) -> Self {
         Self {
             snapshots: Some(dir),
+            ..Self::default()
+        }
+    }
+
+    /// A service already holding `volumes`, for tests of the modules that search it.
+    #[cfg(test)]
+    pub fn with_volumes(volumes: Vec<VolumeIndex>) -> Self {
+        Self {
+            volumes: RwLock::new(volumes),
             ..Self::default()
         }
     }
@@ -157,15 +166,23 @@ impl IndexService {
         self.lock_status().clone()
     }
 
-    /// Searches every ready drive. Returns `None` when a newer search replaced this
-    /// one before it finished, so the caller can drop it.
-    pub fn search(&self, text: &str, limit: usize) -> Option<Vec<Hit>> {
+    /// Starts a search, which stops every search still running. Returns the check
+    /// that reports when this one has in turn been replaced by a newer search.
+    pub fn begin_search(&self) -> impl Fn() -> bool + Sync + '_ {
         let mine = self.query.fetch_add(1, Ordering::SeqCst) + 1;
-        let query = search::parse(text);
+        move || self.query.load(Ordering::Relaxed) != mine
+    }
+
+    /// Searches every ready drive. Returns `None` when `cancelled` reports, before it
+    /// finished, that a newer search replaced this one, so the caller can drop it.
+    pub fn search(
+        &self,
+        query: &Query,
+        limit: usize,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<Vec<Hit>> {
         let volumes = self.volumes.read().unwrap_or_else(PoisonError::into_inner);
-        search::run(&volumes, &query, limit, &|| {
-            self.query.load(Ordering::Relaxed) != mine
-        })
+        search::run(&volumes, query, limit, cancelled)
     }
 
     /// Saves every drive changed by live updates since its last save; called on quit,
@@ -478,13 +495,16 @@ mod tests {
         Arc::new(|_| {})
     }
 
+    fn search(service: &IndexService, text: &str) -> Option<Vec<Hit>> {
+        service.search(&search::parse(text), 10, &service.begin_search())
+    }
+
     #[test]
     fn searches_installed_drives_in_letter_order() {
         let service = IndexService::default();
         assert!(service.install(0, volume('D', &["plan.md"])));
         assert!(service.install(0, volume('C', &["plan.md"])));
-        let paths: Vec<_> = service
-            .search("plan", 10)
+        let paths: Vec<_> = search(&service, "plan")
             .unwrap()
             .into_iter()
             .map(|hit| hit.path)
@@ -497,8 +517,8 @@ mod tests {
         let service = IndexService::default();
         service.install(0, volume('C', &["old.txt"]));
         service.install(0, volume('C', &["new.txt"]));
-        assert!(service.search("old", 10).unwrap().is_empty());
-        assert_eq!(service.search("new", 10).unwrap().len(), 1);
+        assert!(search(&service, "old").unwrap().is_empty());
+        assert_eq!(search(&service, "new").unwrap().len(), 1);
     }
 
     #[test]
@@ -506,7 +526,7 @@ mod tests {
         let service = Arc::new(IndexService::default());
         service.start(&[], quiet());
         assert!(!service.install(0, volume('C', &["stale.txt"])));
-        assert!(service.search("stale", 10).unwrap().is_empty());
+        assert!(search(&service, "stale").unwrap().is_empty());
     }
 
     #[test]
@@ -514,7 +534,7 @@ mod tests {
         let service = Arc::new(IndexService::default());
         service.install(0, volume('C', &["a.txt"]));
         service.start(&[], quiet());
-        assert!(service.search("a", 10).unwrap().is_empty());
+        assert!(search(&service, "a").unwrap().is_empty());
         assert_eq!(service.status(), Status::default());
     }
 
@@ -525,9 +545,9 @@ mod tests {
         first.save_snapshot(&volume('Q', &["kept.txt"]), None);
 
         let next = IndexService::with_snapshots(dir.clone());
-        assert!(next.search("kept", 10).unwrap().is_empty());
+        assert!(search(&next, "kept").unwrap().is_empty());
         next.load_snapshot(0, 'Q', &quiet());
-        let hits = next.search("kept", 10).unwrap();
+        let hits = search(&next, "kept").unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].path, "Q:\\kept.txt");
@@ -555,8 +575,8 @@ mod tests {
         service.install(0, volume('Q', &["new.txt"]));
         service.load_snapshot(0, 'Q', &quiet());
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(service.search("new", 10).unwrap().len(), 1);
-        assert!(service.search("old", 10).unwrap().is_empty());
+        assert_eq!(search(&service, "new").unwrap().len(), 1);
+        assert!(search(&service, "old").unwrap().is_empty());
     }
 
     #[test]
@@ -567,7 +587,7 @@ mod tests {
         let service = IndexService::with_snapshots(dir.clone());
         service.load_snapshot(0, 'Q', &quiet());
         let _ = std::fs::remove_dir_all(&dir);
-        assert!(service.search("garbage", 10).unwrap().is_empty());
+        assert!(search(&service, "garbage").unwrap().is_empty());
     }
 
     #[test]

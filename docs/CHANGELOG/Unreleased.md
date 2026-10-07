@@ -92,6 +92,21 @@
   - **What a tag is:** one word of up to 32 letters, digits, `-` or `_`, stored in
     lower case. Tags are saved in the app's database, keyed by the folder's path, so a
     folder that is renamed or moved loses its tags.
+- A filter bar under the search field narrows the results. Every change searches
+  again at once.
+  - **Date:** when a result last changed: Today, Yesterday, Last 7 days, Last 30
+    days, This month, This year, or a custom day, month, year or range (either end
+    may be left open). Days follow your local time.
+  - **Kind:** All, Files or Folders, overriding a typed `type:`.
+  - **Tags:** folders carrying every tag picked, from the filter's menu or the
+    sidebar; a tag chip on a result turns its filter on or off.
+  - **How dates are read:** the index holds names only, so dates are read from the
+    disk for the best name matches, up to 20,000 to 100,000 of them depending on the
+    results limit. When that was not enough, the line above the results says to type
+    more of the name. A one-letter search checked against the last day took under a
+    second on 1.2 million names.
+  - **Without a name:** a date or kind alone lists nothing, since there is no name to
+    look for; a tag alone lists the folders carrying it.
 - Findex updates itself. It checks for a newer signed release 10 seconds after it
   opens and every six hours, downloads it in the background, then offers "Restart
   now" or "Later" in a card above the status bar. "Later" keeps the download and
@@ -107,8 +122,8 @@
 
 - The main window is redesigned after Finder: a sidebar on the left holds the drive
   (with its free space) and the tags in use with their folder counts, and the search
-  sits on the right. Pressing a tag in the sidebar searches it, as the chips on the
-  empty screen did before.
+  sits on the right. Pressing a tag in the sidebar filters by it, in place of the
+  chips the empty screen showed before.
   - **Results:** one fixed-height row per result, and the selected row is filled with
     the accent colour so it is found at a glance.
   - **Chrome:** title bar, sidebar and status bar share one translucent material, and

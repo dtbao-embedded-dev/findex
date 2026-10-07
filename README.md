@@ -49,6 +49,16 @@ pnpm run tauri dev
 The app window opens; edits under src/ reload it.
 ```
 
+### Searching
+
+- Type part of a name: every word must appear in it. `ext:pdf;docx`, `type:file`,
+  `type:folder` and `tag:work` narrow the search from the field itself.
+- The filter bar under the field narrows by when a result last changed (Today, Last
+  7 days, This year… or a custom day, month, year or range), by files or folders, and
+  by the tags a folder carries. A tag can also be picked in the sidebar.
+- The index holds names only, so a date filter reads dates from the disk for the best
+  name matches. When the line above the results says so, type more of the name.
+
 ## Build from source
 
 ```bash

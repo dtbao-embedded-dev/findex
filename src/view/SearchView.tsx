@@ -4,6 +4,7 @@ import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
 import type { TagCount } from "../model/tags";
 import {
+  canSearch,
   describeHit,
   describeResults,
   folderOf,
@@ -17,8 +18,16 @@ import {
 } from "../presenter/searchPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
-import { loadTags, tagQuery } from "../presenter/tagPresenter";
+import {
+  initialFilters,
+  isFiltered,
+  toFilters,
+  toggleTag,
+  type FilterState,
+} from "../presenter/filterPresenter";
+import { loadTags } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
+import { FilterBar } from "./FilterBar";
 import { Sidebar } from "./Sidebar";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
@@ -50,6 +59,7 @@ type Props = {
  */
 export function SearchView({ total, active, onActiveChange }: Props) {
   const [state, setState] = useState(initialSearch);
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
   const loadDetails = useMemo(() => latestDetails(), []);
   const [details, setDetails] = useState<Record<string, Details>>({});
@@ -116,22 +126,28 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     });
   }, [state.hits, loadDetails]);
 
-  const run = (query: string) => {
+  // Dates such as "Today" are measured when each search is asked, not when picked.
+  const run = (query: string, by: FilterState = filters) => {
     setState((s) => ({ ...s, query }));
-    void search(query).then((update) => {
+    void search(query, toFilters(by)).then((update) => {
       if (update) {
         setState((s) => ({ ...s, ...update }));
       }
     });
   };
 
+  const changeFilters = (next: FilterState) => {
+    setFilters(next);
+    run(state.query, next);
+  };
+
   // A drive finishing, its snapshot loading, or files changing on disk change what
   // can be found: answer the query on screen again, keeping the selected file.
   useEffect(() => {
-    if (state.query.trim() === "") {
+    if (!canSearch(state.query, filters)) {
       return;
     }
-    void search(state.query).then((update) => {
+    void search(state.query, toFilters(filters)).then((update) => {
       if (update) {
         setState((s) => ({
           ...s,
@@ -197,10 +213,10 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     }
   };
 
-  const hasQuery = state.query.trim() !== "";
+  const hasQuery = canSearch(state.query, filters);
 
   const searchTag = (tag: string) => {
-    run(tagQuery(tag));
+    changeFilters({ ...filters, tags: toggleTag(filters.tags, tag) });
     field.current?.focus();
   };
 
@@ -216,6 +232,7 @@ export function SearchView({ total, active, onActiveChange }: Props) {
           field.current?.focus();
         }}
         tags={tagsInUse}
+        selectedTags={filters.tags}
         onTag={searchTag}
       />
       <main className="search">
@@ -242,6 +259,11 @@ export function SearchView({ total, active, onActiveChange }: Props) {
               }}
             />
           </label>
+          <FilterBar
+            filters={filters}
+            tags={tagsInUse}
+            onChange={changeFilters}
+          />
         </div>
 
         <div className="results-scroll">
@@ -256,8 +278,14 @@ export function SearchView({ total, active, onActiveChange }: Props) {
                 Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
               </p>
               <p className="empty-hint">
-                Type part of a name. Narrow with <kbd>ext:pdf</kbd>, <kbd>type:folder</kbd> or{" "}
-                <kbd>tag:work</kbd>.
+                {isFiltered(filters) ? (
+                  <>Type part of a name to search with these filters.</>
+                ) : (
+                  <>
+                    Type part of a name, then narrow with the filters above or{" "}
+                    <kbd>ext:pdf</kbd>.
+                  </>
+                )}
               </p>
             </div>
           ) : state.hits.length === 0 && state.tookMs !== null ? (
@@ -267,7 +295,9 @@ export function SearchView({ total, active, onActiveChange }: Props) {
           ) : (
             <>
               {state.tookMs !== null && (
-                <p className="results-meta">{describeResults(state.hits.length, state.tookMs)}</p>
+                <p className="results-meta">
+                  {describeResults(state.hits.length, state.tookMs, state.partial)}
+                </p>
               )}
               <ul id="results" className="results" role="listbox" aria-label="Results">
                 {state.hits.map((hit, index) => (
@@ -301,7 +331,7 @@ export function SearchView({ total, active, onActiveChange }: Props) {
                             type="button"
                             className="tag-chip is-small"
                             tabIndex={-1}
-                            title={`Show folders tagged ${tag}`}
+                            title={`Filter by the tag ${tag}`}
                             onClick={() => searchTag(tag)}
                           >
                             #{tag}

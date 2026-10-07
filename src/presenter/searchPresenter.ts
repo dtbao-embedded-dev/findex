@@ -1,5 +1,5 @@
 import { describePaths, type Details } from "../model/details";
-import { revealPath, searchNames, type Hit } from "../model/search";
+import { revealPath, searchNames, type Answer, type Filters, type Hit } from "../model/search";
 import { formatBytes } from "./drivePresenter";
 
 /** What the search screen shows. */
@@ -10,6 +10,8 @@ export type SearchState = {
   error: string | null;
   /** How long the last answered search took, end to end, in milliseconds. */
   tookMs: number | null;
+  /** A date filter was checked on only the best name matches: more may match. */
+  partial: boolean;
 };
 
 export const initialSearch: SearchState = {
@@ -18,41 +20,58 @@ export const initialSearch: SearchState = {
   selected: 0,
   error: null,
   tookMs: null,
+  partial: false,
 };
 
 /** The part of the state one search answers; null when a later search superseded it. */
-export type SearchUpdate = Pick<SearchState, "hits" | "selected" | "error" | "tookMs">;
+export type SearchUpdate = Pick<SearchState, "hits" | "selected" | "error" | "tookMs" | "partial">;
+
+const CLEARED: SearchUpdate = { hits: [], selected: 0, error: null, tookMs: null, partial: false };
 
 /**
- * Wraps the model search so only the latest call's answer is used: typing fires a
- * search per keystroke, and an older, slower answer must never replace a newer one.
- * An empty query clears the results without asking Rust.
+ * Whether there is anything to ask: the index holds names only, so a search needs a
+ * name; a tag alone also works, listing the folders that carry it.
+ */
+export function canSearch(query: string, filters: { tags: string[] }): boolean {
+  return query.trim() !== "" || filters.tags.length > 0;
+}
+
+/**
+ * Wraps the model search so only the latest call's answer is used: typing or a filter
+ * change fires a search, and an older, slower answer must never replace a newer one.
+ * Nothing to search for clears the results without asking Rust.
  */
 export function latestOnly(
-  ask: (query: string) => Promise<Hit[] | null> = searchNames,
+  ask: (query: string, filters: Filters) => Promise<Answer | null> = searchNames,
   now: () => number = () => performance.now(),
-): (query: string) => Promise<SearchUpdate | null> {
+): (query: string, filters: Filters) => Promise<SearchUpdate | null> {
   let latest = 0;
-  return async (query) => {
+  return async (query, filters) => {
     const mine = ++latest;
-    if (query.trim() === "") {
-      return { hits: [], selected: 0, error: null, tookMs: null };
+    if (!canSearch(query, filters)) {
+      return CLEARED;
     }
     const start = now();
     try {
-      let hits = await ask(query);
+      let answer = await ask(query, filters);
       // Rust answers null when it cancelled this search for one that reached it
       // later. Calls can reach Rust out of order, so an older keystroke may have
       // cancelled this, the newest: ask once more, and it then wins.
-      if (hits === null && mine === latest) {
-        hits = await ask(query);
+      if (answer === null && mine === latest) {
+        answer = await ask(query, filters);
       }
-      if (mine !== latest || hits === null) {
+      if (mine !== latest || answer === null) {
         return null;
       }
-      return { hits, selected: 0, error: null, tookMs: now() - start };
+      return {
+        hits: answer.hits,
+        selected: 0,
+        error: null,
+        tookMs: now() - start,
+        partial: answer.partial,
+      };
     } catch (err) {
-      return mine === latest ? { hits: [], selected: 0, error: String(err), tookMs: null } : null;
+      return mine === latest ? { ...CLEARED, error: String(err) } : null;
     }
   };
 }
@@ -60,11 +79,15 @@ export function latestOnly(
 /** Rust's default result limit; a full page means there are more matches. */
 export const RESULT_LIMIT = 200;
 
-/** The line above the results: how many, and how fast. */
-export function describeResults(count: number, tookMs: number): string {
+/**
+ * The line above the results: how many, and how fast. When a date was checked on
+ * only the best name matches, it says how to see more.
+ */
+export function describeResults(count: number, tookMs: number, partial = false): string {
   const amount =
     count >= RESULT_LIMIT ? `Top ${RESULT_LIMIT} results` : `${count} result${count === 1 ? "" : "s"}`;
-  return `${amount} · ${Math.max(1, Math.round(tookMs))} ms`;
+  const more = partial ? " · type more of the name to find older matches" : "";
+  return `${amount} · ${Math.max(1, Math.round(tookMs))} ms${more}`;
 }
 
 /**

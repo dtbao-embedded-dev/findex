@@ -1,6 +1,7 @@
 //! Business rules: plain functions over plain data, unit-tested without a window.
 
 pub mod about;
+pub mod dated;
 pub mod db;
 pub mod details;
 pub mod drives;
