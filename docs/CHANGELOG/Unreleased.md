@@ -115,6 +115,8 @@
     menus, the tag editor and the update card float on a solid surface above them.
   - **Dark mode, reduced motion, reduced transparency and more contrast** are all
     followed, and the splash window picks up the same look.
+- The title bar shows the app icon, the name and the running version (for example
+  `Findex v0.1.0`), so which build is open is visible without the tray.
 - The app is now named **Findex** in its window, title bar, tray tooltip, installer and
   release titles. The package, crate, bundle id (`com.dtbao.findex`) and repository stay
   lowercase, so installed copies and update URLs are unaffected.

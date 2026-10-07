@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
 import { loadActive } from "../presenter/drivePresenter";
 import { revealMain } from "../presenter/splashPresenter";
 import { summarize, watchStatus } from "../presenter/statusPresenter";
@@ -22,12 +23,14 @@ import { UpdateBanner } from "./UpdateBanner";
  * Updates are checked in the background; a ready one is offered above the status bar.
  */
 export function App() {
+  const [title, setTitle] = useState(initialTitle);
   const [active, setActive] = useState<string | null>(null);
   const [status, setStatus] = useState(() => summarize({ drives: [] }));
   const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
   const updater = useMemo(() => createUpdater({ onState: setUpdate }), []);
 
   useEffect(() => {
+    void loadTitle().then(setTitle);
     void revealMain(loadActive().then(setActive));
     const stop = watchStatus(setStatus);
     return () => {
@@ -47,7 +50,7 @@ export function App() {
   return (
     <div className="app">
       <TitleBar
-        title="Findex"
+        title={title}
         onMinimize={minimizeWindow}
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
