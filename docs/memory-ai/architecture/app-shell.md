@@ -34,7 +34,8 @@ keywords: tauri, react, pnpm, MVP, tray, single-instance, updater, sqlite, title
 - **tray**: single-instance plugin registered first; a second launch shows the running
   window. `CloseRequested` hides the window; only tray Quit exits.
 - **updater**: updater and process plugins; the endpoint is the GitHub `latest.json` of
-  `dtbao-embedded-dev/findex`. `pubkey` is still a placeholder (see progress).
+  `dtbao-embedded-dev/findex`. `pubkey` holds the real key (see
+  [updater signing key](../rule/updater-signing-key.md)).
 - **sqlite**: `model::db::open` creates `<app data dir>/findex.sqlite3` during setup and
   it is managed as `Db` state; the first migration creates the `setting` table.
 - **titlebar**: `decorations: false`; custom bar with a drag region and four window

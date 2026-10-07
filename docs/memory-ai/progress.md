@@ -24,7 +24,6 @@ See [product scope](architecture/product-scope.md).
 
 ## Known issues
 
-- Updater `pubkey` is a placeholder: generate a key and add the two signing secrets.
 - `main` branch protection must be enabled on GitHub by hand.
 
 ## Verification

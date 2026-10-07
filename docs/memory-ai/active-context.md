@@ -13,12 +13,13 @@ Initial setup of findex; no feature work started.
 
 ## Recent changes
 
+- 2026-10-07: updater signing key generated; pubkey embedded, both secrets set on GitHub.
 - 2026-10-07: scaffolded (tauri, react, pnpm, tray/updater/sqlite/titlebar); lockfiles committed.
 
 ## Next steps
 
 1. Run `pnpm tauri dev` to confirm the window, tray and title bar.
-2. Generate the updater signing key (deferred by the user on 2026-10-07).
+2. Wire `installUpdate()` into the UI (nothing calls it yet).
 3. Design name search, then the content index.
 
 ## Active decisions

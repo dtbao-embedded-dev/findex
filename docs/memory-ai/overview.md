@@ -34,6 +34,7 @@ needs a human before you rely on it).
 | architecture | [architecture/product-scope.md](architecture/product-scope.md) | What findex is for — the four user-facing capabilities the app is being built toward. | active | findex, file search, content search, folder tags, quick open, launcher |
 | architecture | [architecture/app-shell.md](architecture/app-shell.md) | How the Tauri 2 + React 19 app is layered and which scaffold features are wired in. | active | tauri, react, pnpm, MVP, tray, single-instance, updater, sqlite, titlebar, AppResult |
 | rule | [rule/database-migrations.md](rule/database-migrations.md) | How to change the SQLite schema without breaking installed copies. | active | MIGRATIONS, migrate, user_version, rusqlite, Db |
+| rule | [rule/updater-signing-key.md](rule/updater-signing-key.md) | Where the updater signing key lives and what must never happen to it. | active | pubkey, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD, createUpdaterArtifacts, tauri signer |
 | adr | [adr/adr-0001-scaffold-choices.md](adr/adr-0001-scaffold-choices.md) | Why findex was scaffolded as Tauri + React + pnpm with tray, updater, sqlite and titlebar. | active | skill-workflow-init-repo, tauri, react, pnpm, sqlite, updater, public repo |
 <!-- END:MAP -->
 
