@@ -1,0 +1,21 @@
+[package]
+name = "findex-tag"
+version = "0.1.0"
+description = "Tags a folder for Findex from Explorer's right-click menu, with the user's normal rights."
+authors = ["dtbao"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77.2"
+
+# Standard library only: it runs from Explorer, so it must start fast and stay small.
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
+expect_used = "deny"

@@ -4,9 +4,9 @@
   "version": "../package.json",
   "identifier": "com.dtbao.findex",
   "build": {
-    "beforeDevCommand": "pnpm run dev",
+    "beforeDevCommand": "pnpm run helper:dev && pnpm run dev",
     "devUrl": "http://localhost:1832",
-    "beforeBuildCommand": "pnpm run build",
+    "beforeBuildCommand": "pnpm run helper && pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {

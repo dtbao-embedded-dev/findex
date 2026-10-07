@@ -231,6 +231,12 @@
   with the drive's name and free space on hover, and the re-scan button moved from the
   title bar to the right of the field. Tags are still filtered from the **Tags** menu
   in the filter bar and from the tag chips on results.
+- Building now also builds `findex-tag`, a small helper crate in `src-tauri/tag-helper`
+  (a Cargo workspace member). `pnpm tauri dev` builds it in debug beside the app;
+  `pnpm tauri build` runs `docs/scripts/build-helper.py` (Python), which builds it in
+  release and places it where the release bundle (`bundle.externalBin` in
+  `tauri.release.conf.json`) picks it up. CI now formats, lints and tests the whole
+  workspace.
 
 ### Fixed
 

@@ -7,6 +7,11 @@ license = "MIT"
 edition = "2021"
 rust-version = "1.77.2"
 
+# The Explorer-menu helper is its own crate: tauri-build embeds the administrator
+# manifest in every binary of this one, and the helper must run unelevated.
+[workspace]
+members = ["tag-helper"]
+
 # main.rs only calls into the library, so tests link the app's code directly.
 [lib]
 name = "findex_lib"
