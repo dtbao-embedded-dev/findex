@@ -1,5 +1,5 @@
 import { describePaths, type Details } from "../model/details";
-import { revealPath, searchNames, type Answer, type Filters, type Hit } from "../model/search";
+import { searchNames, type Answer, type Filters, type Hit } from "../model/search";
 import { formatBytes } from "./drivePresenter";
 import { RESULTS_DEFAULT } from "./settingsPresenter";
 
@@ -193,19 +193,6 @@ export function highlight(name: string, query: string): Segment[] {
     }
   }
   return segments;
-}
-
-/** Shows a result in Explorer; resolves to the error to show, or null. */
-export async function revealHit(
-  hit: Hit,
-  reveal: (path: string) => Promise<void> = revealPath,
-): Promise<string | null> {
-  try {
-    await reveal(hit.path);
-    return null;
-  } catch (err) {
-    return String(err);
-  }
 }
 
 /**

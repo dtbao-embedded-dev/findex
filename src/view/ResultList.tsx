@@ -16,7 +16,6 @@ type Props = {
   /** The rendered rows by index, for placing the menu at the selected one. */
   rows: RefObject<(HTMLLIElement | null)[]>;
   onSelect: (index: number) => void;
-  onReveal: (index: number) => void;
   onMenu: (at: { x: number; y: number }, index: number) => void;
   onTag: (tag: string) => void;
   /** The colour of each colour tag, by name. */
@@ -43,7 +42,6 @@ export function ResultList({
   meta,
   rows,
   onSelect,
-  onReveal,
   onMenu,
   onTag,
   tagColors,
@@ -148,7 +146,6 @@ export function ResultList({
               className={index === selected ? "result is-selected" : "result"}
               style={{ top: index * rowHeight }}
               onMouseDown={() => onSelect(index)}
-              onDoubleClick={() => onReveal(index)}
               onContextMenu={(event) => {
                 event.preventDefault();
                 onMenu({ x: event.clientX, y: event.clientY }, index);

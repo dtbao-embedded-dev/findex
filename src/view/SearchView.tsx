@@ -13,7 +13,6 @@ import {
   latestOnly,
   moveSelection,
   resultsView,
-  revealHit,
 } from "../presenter/searchPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
@@ -61,8 +60,8 @@ type Props = {
 
 /**
  * The search screen: one field, results as you type, keyboard first. ↑/↓ move the
- * selection, Enter (or a double click) shows the result in Explorer, Esc clears.
- * Right-click, the menu key or Shift+F10 opens the actions for a result.
+ * selection and Esc clears. Enter and a double click open nothing: every action on a
+ * result goes through its menu (right-click, the menu key or Shift+F10).
  */
 export function SearchView({ total, active, onActiveChange, limit, tags, onTagsChanged }: Props) {
   const [state, setState] = useState(initialSearch);
@@ -190,17 +189,6 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
   // A new results limit applies to the search on screen at once.
   useEffect(refresh, [limit]);
 
-  const reveal = (index: number) => {
-    const hit = state.hits[index];
-    if (hit) {
-      void revealHit(hit).then((error) => {
-        if (error) {
-          setState((s) => ({ ...s, error }));
-        }
-      });
-    }
-  };
-
   const openMenuAtSelection = () => {
     const index = state.selected;
     const hit = state.hits[index];
@@ -248,8 +236,6 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
     if (step !== undefined) {
       event.preventDefault();
       setState((s) => ({ ...s, selected: moveSelection(s.selected, step, s.hits.length) }));
-    } else if (event.key === "Enter") {
-      reveal(state.selected);
     } else if (event.key === "Escape") {
       // A first Esc clears the name; a second one clears the filters as well.
       if (state.query === "" && isFiltered(filters)) {
@@ -327,7 +313,6 @@ export function SearchView({ total, active, onActiveChange, limit, tags, onTagsC
             }
             rows={rows}
             onSelect={(index) => setState((s) => ({ ...s, selected: index }))}
-            onReveal={reveal}
             onMenu={(at, index) => {
               const hit = state.hits[index];
               setState((s) => ({ ...s, selected: index }));

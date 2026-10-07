@@ -34,8 +34,9 @@
   - **Search as you type:** results appear on every keystroke, with the matched part
     of each name in bold and its folder underneath. An answer that arrives late is
     never allowed to replace a newer one.
-  - **Keyboard:** ↑/↓ move the selection, Enter (or a double click) shows the file in
-    Explorer, and Esc clears the field.
+  - **Keyboard:** ↑/↓ move the selection and Esc clears the field. Enter and a double
+    click open nothing, so a stray key press never launches a window; every action on
+    a result is in its right-click menu.
   - **Status bar:** shows indexing progress per drive, then how many items can be
     searched, plus why a drive fell back to a folder scan.
   - **Measured:** on 6.3 million names in a development build, a typical query

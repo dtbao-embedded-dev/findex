@@ -13,7 +13,6 @@ import {
   latestOnly,
   moveSelection,
   resultsView,
-  revealHit,
 } from "./searchPresenter";
 
 function hit(path: string, isDir = false): Hit {
@@ -221,21 +220,6 @@ describe("highlight", () => {
 
   it("marks nothing when no term occurs", () => {
     expect(highlight("a.txt", "type:file")).toEqual([{ text: "a.txt", match: false }]);
-  });
-});
-
-describe("revealHit", () => {
-  it("passes the path to the model and reports a refusal", async () => {
-    let shown = "";
-    expect(
-      await revealHit(hit("C:\\a.txt"), async (path) => {
-        shown = path;
-      }),
-    ).toBeNull();
-    expect(shown).toBe("C:\\a.txt");
-    expect(
-      await revealHit(hit("C:\\gone.txt"), async () => Promise.reject("C:\\gone.txt no longer exists")),
-    ).toBe("C:\\gone.txt no longer exists");
   });
 });
 
