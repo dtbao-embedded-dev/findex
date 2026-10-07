@@ -58,7 +58,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: findex ${{ github.ref_name }}
+          releaseName: Findex ${{ github.ref_name }}
           # A draft until the installer is attached: a failed build leaves an
           # invisible draft, never an empty public release.
           releaseDraft: true

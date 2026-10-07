@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "findex",
+  "productName": "Findex",
   "version": "../package.json",
   "identifier": "com.dtbao.findex",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "findex",
+        "title": "Findex",
         "width": 1024,
         "height": 720,
         "minWidth": 800,

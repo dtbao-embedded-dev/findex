@@ -22,7 +22,7 @@ pub fn init(app: &App) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("findex")
+        .tooltip("Findex")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {

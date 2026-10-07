@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Cut a release of findex.
+Cut a release of Findex.
 
 Usage:
     python docs/scripts/tool-release.py v0.2.0 [--dry-run] [--push]

@@ -1,10 +1,10 @@
-# CLAUDE.md — findex
+# CLAUDE.md — Findex
 
 Authoritative guidance for Claude Code in this repository. Read it before changing
 any file. These rules are not suggestions; a change that breaks one is wrong even
 if it works.
 
-- **Project**: findex — A desktop launcher that finds files and folders by name, searches keywords inside file contents, tags folders, and opens results in a terminal or any app.
+- **Project**: Findex — A desktop launcher that finds files and folders by name, searches keywords inside file contents, tags folders, and opens results in a terminal or any app.
 - **Type**: Tauri desktop app (`tauri`)
 - **Version**: v0.1.0
 - **License**: MIT © 2026 dtbao

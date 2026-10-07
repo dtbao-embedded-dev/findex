@@ -15,13 +15,13 @@ export function App() {
   return (
     <>
       <TitleBar
-        title="findex"
+        title="Findex"
         onMinimize={minimizeWindow}
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
       />
       <main>
-        <h1>findex</h1>
+        <h1>Findex</h1>
         <GreetingView
           state={greeting}
           onSubmit={(name) => {

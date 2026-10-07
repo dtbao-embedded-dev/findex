@@ -3,7 +3,7 @@
 
 fn main() {
     if let Err(err) = findex_lib::run() {
-        eprintln!("findex failed to start: {err}");
+        eprintln!("Findex failed to start: {err}");
         std::process::exit(1);
     }
 }

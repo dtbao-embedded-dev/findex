@@ -12,7 +12,7 @@ A desktop launcher that finds files and folders by name, searches keywords insid
 <!-- Why this exists: the problem, who it is for, and what makes it different from
 the obvious alternatives. Two or three short paragraphs. -->
 
-findex is a Tauri desktop app by dtbao.
+Findex is a Tauri desktop app by dtbao.
 
 ## Install
 
