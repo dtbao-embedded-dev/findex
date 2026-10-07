@@ -8,8 +8,8 @@ use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
 use crate::model::db::Db;
 use crate::model::drives::{self, Drive};
-use crate::model::greeting;
 use crate::model::index::service::{Emit, IndexService, Status};
+use crate::model::reveal;
 use crate::model::search::{Hit, DEFAULT_LIMIT};
 use crate::splash;
 use tauri::{AppHandle, Emitter, State};
@@ -22,11 +22,6 @@ pub fn status_emitter(app: &AppHandle) -> Emit {
             eprintln!("could not send the index status: {err}");
         }
     })
-}
-
-#[tauri::command]
-pub fn greet(name: &str) -> AppResult<String> {
-    greeting::greet(name)
 }
 
 #[tauri::command]
@@ -103,4 +98,9 @@ pub async fn search_names(
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))
+}
+
+#[tauri::command]
+pub fn reveal_path(path: &str) -> AppResult<()> {
+    reveal::reveal(path)
 }

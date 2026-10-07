@@ -29,6 +29,16 @@
   - **Other drives:** a parallel folder scan that never follows junctions or links.
   - **While re-indexing:** a drive's previous results stay searchable until its new
     index replaces them.
+- The main window is a search screen:
+  - **Search as you type:** results appear on every keystroke, with the matched part
+    of each name in bold and its folder underneath. An answer that arrives late is
+    never allowed to replace a newer one.
+  - **Keyboard:** ↑/↓ move the selection, Enter (or a double click) shows the file in
+    Explorer, and Esc clears the field.
+  - **Status bar:** shows indexing progress per drive, then how many items can be
+    searched, plus why a drive fell back to a folder scan.
+  - **Measured:** on 6.3 million names in a development build, a typical query
+    answers in about 30 ms, round trip included.
 
 ### Changed
 
@@ -44,3 +54,5 @@
 ### Fixed
 
 ### Removed
+
+- The scaffold's greeting demo (`greet` command and its view), replaced by search.

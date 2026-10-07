@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 
-import { initialGreeting, submitName } from "../presenter/greetingPresenter";
 import { needsSetup } from "../presenter/setupPresenter";
 import { revealMain } from "../presenter/splashPresenter";
-import { GreetingView } from "./GreetingView";
+import { summarize, watchStatus } from "../presenter/statusPresenter";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
+import { SearchView } from "./SearchView";
 import { SetupView } from "./SetupView";
+import { StatusBar } from "./StatusBar";
 import { TitleBar } from "./TitleBar";
 
 type Screen = "loading" | "setup" | "search";
@@ -15,9 +16,9 @@ type Screen = "loading" | "setup" | "search";
  * deciding what that input means is the presenter's job, not the component's.
  */
 export function App() {
-  const [greeting, setGreeting] = useState(initialGreeting);
   const [screen, setScreen] = useState<Screen>("loading");
   const [firstRun, setFirstRun] = useState(false);
+  const [status, setStatus] = useState(() => summarize({ drives: [] }));
 
   useEffect(() => {
     const route = needsSetup().then((setup) => {
@@ -25,10 +26,14 @@ export function App() {
       setScreen(setup ? "setup" : "search");
     });
     void revealMain(route);
+    const stop = watchStatus(setStatus);
+    return () => {
+      void stop.then((unlisten) => unlisten());
+    };
   }, []);
 
   return (
-    <>
+    <div className="app">
       <TitleBar
         title="Findex"
         onMinimize={minimizeWindow}
@@ -36,33 +41,21 @@ export function App() {
         onClose={closeWindow}
       />
       {screen === "setup" && (
-        <SetupView
-          firstRun={firstRun}
-          onDone={() => {
-            setFirstRun(false);
-            setScreen("search");
-          }}
-          onCancel={() => setScreen("search")}
-        />
+        <div className="screen-scroll">
+          <SetupView
+            firstRun={firstRun}
+            onDone={() => {
+              setFirstRun(false);
+              setScreen("search");
+            }}
+            onCancel={() => setScreen("search")}
+          />
+        </div>
       )}
       {screen === "search" && (
-        <>
-          <nav className="toolbar">
-            <button type="button" className="button-secondary" onClick={() => setScreen("setup")}>
-              Drives
-            </button>
-          </nav>
-          <main>
-            <h1>Findex</h1>
-            <GreetingView
-              state={greeting}
-              onSubmit={(name) => {
-                void submitName(name).then(setGreeting);
-              }}
-            />
-          </main>
-        </>
+        <SearchView total={status.total} onOpenDrives={() => setScreen("setup")} />
       )}
-    </>
+      {screen !== "loading" && <StatusBar line={status} />}
+    </div>
   );
 }

@@ -45,7 +45,6 @@ pub fn run() -> tauri::Result<()> {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            commands::greet,
             commands::get_setting,
             commands::set_setting,
             commands::app_about,
@@ -55,7 +54,8 @@ pub fn run() -> tauri::Result<()> {
             commands::set_scan_drives,
             commands::start_index,
             commands::index_status,
-            commands::search_names
+            commands::search_names,
+            commands::reveal_path
         ])
         .run(tauri::generate_context!())
 }
