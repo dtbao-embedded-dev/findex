@@ -458,8 +458,29 @@ button:focus-visible {
 
 .result-text {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+
+/* Type and size over the date: secondary, right-aligned, digits in columns. */
+.result-meta {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 40%;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: fade 150ms ease both;
+}
+
+.result-meta > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .result-name,

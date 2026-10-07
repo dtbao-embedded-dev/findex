@@ -1,4 +1,6 @@
+import { describePaths, type Details } from "../model/details";
 import { revealPath, searchNames, type Hit } from "../model/search";
+import { formatBytes } from "./drivePresenter";
 
 /** What the search screen shows. */
 export type SearchState = {
@@ -140,4 +142,50 @@ export async function revealHit(
   } catch (err) {
     return String(err);
   }
+}
+
+/**
+ * Fetches the details of a page of results, after the results are already on
+ * screen, so reading the disk never slows a search. Only the latest page's answer
+ * is used; a failure only means no details are shown.
+ */
+export function latestDetails(
+  ask: (paths: string[]) => Promise<Details[]> = describePaths,
+): (hits: Hit[]) => Promise<Record<string, Details> | null> {
+  let latest = 0;
+  return async (hits) => {
+    const mine = ++latest;
+    if (hits.length === 0) {
+      return {};
+    }
+    let found: Details[];
+    try {
+      found = await ask(hits.map((hit) => hit.path));
+    } catch {
+      found = [];
+    }
+    if (mine !== latest) {
+      return null;
+    }
+    return Object.fromEntries(found.map((details) => [details.path, details]));
+  };
+}
+
+const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+/**
+ * The two short lines at the right of a result: its type and size, then when it last
+ * changed. Null until the details arrive.
+ */
+export function describeHit(
+  details: Details | undefined,
+  formatDate: (ms: number) => string = (ms) => DATE.format(ms),
+): { kind: string; modified: string } | null {
+  if (!details) {
+    return null;
+  }
+  return {
+    kind: details.size === null ? details.kind : `${details.kind} · ${formatBytes(details.size)}`,
+    modified: details.modified === null ? "" : formatDate(details.modified),
+  };
 }

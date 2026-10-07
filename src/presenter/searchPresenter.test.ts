@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
 import {
+  describeHit,
   describeResults,
   folderOf,
   highlight,
   keepSelection,
+  latestDetails,
   latestOnly,
   moveSelection,
   revealHit,
@@ -141,5 +144,69 @@ describe("revealHit", () => {
     expect(
       await revealHit(hit("C:\\gone.txt"), async () => Promise.reject("C:\\gone.txt no longer exists")),
     ).toBe("C:\\gone.txt no longer exists");
+  });
+});
+
+describe("describeHit", () => {
+  const date = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const details = (more: Partial<Details>): Details => ({
+    path: "C:\a.pdf",
+    kind: "PDF Document",
+    size: 2.4 * 1024 * 1024,
+    modified: Date.UTC(2026, 9, 5),
+    ...more,
+  });
+
+  it("words a file's type and size, then its date", () => {
+    expect(describeHit(details({}), date)).toEqual({
+      kind: "PDF Document · 2.4 MB",
+      modified: "2026-10-05",
+    });
+  });
+
+  it("gives a folder no size", () => {
+    expect(describeHit(details({ kind: "File folder", size: null }), date)).toEqual({
+      kind: "File folder",
+      modified: "2026-10-05",
+    });
+  });
+
+  it("shows nothing until the details arrive, and no date when there is none", () => {
+    expect(describeHit(undefined, date)).toBeNull();
+    expect(describeHit(details({ modified: null }), date)?.modified).toBe("");
+  });
+});
+
+describe("latestDetails", () => {
+  it("indexes the details by path", async () => {
+    const load = latestDetails(async (paths) => paths.map((path) => ({ path, kind: "x", size: 1, modified: 2 })));
+    const found = await load([hit("C:\a.txt"), hit("C:\b.txt")]);
+    expect(Object.keys(found ?? {})).toEqual(["C:\a.txt", "C:\b.txt"]);
+  });
+
+  it("drops an answer that a newer page of results replaced", async () => {
+    const pending: ((d: Details[]) => void)[] = [];
+    const load = latestDetails(() => new Promise((resolve) => pending.push(resolve)));
+    const first = load([hit("C:\old.txt")]);
+    const second = load([hit("C:\new.txt")]);
+    pending[1]?.([{ path: "C:\new.txt", kind: "x", size: 1, modified: 1 }]);
+    pending[0]?.([{ path: "C:\old.txt", kind: "x", size: 1, modified: 1 }]);
+    expect(await first).toBeNull();
+    expect(Object.keys((await second) ?? {})).toEqual(["C:\new.txt"]);
+  });
+
+  it("answers no details, not an error, when reading them fails", async () => {
+    const load = latestDetails(async () => Promise.reject("busy"));
+    expect(await load([hit("C:\a.txt")])).toEqual({});
+  });
+
+  it("does not ask the disk for an empty page", async () => {
+    let calls = 0;
+    const load = latestDetails(async () => {
+      calls += 1;
+      return [];
+    });
+    expect(await load([])).toEqual({});
+    expect(calls).toBe(0);
   });
 });

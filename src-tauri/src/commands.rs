@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
 use crate::model::db::Db;
+use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
@@ -101,6 +102,15 @@ pub async fn search_names(
     })
     .await
     .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))
+}
+
+/// Type, size and date for the results on screen. Off the async runtime: it waits
+/// on the disk.
+#[tauri::command]
+pub async fn describe_paths(paths: Vec<String>) -> AppResult<Vec<Details>> {
+    tauri::async_runtime::spawn_blocking(move || details::describe(&paths))
+        .await
+        .map_err(|err| AppError::Invalid(format!("reading file details stopped: {err}")))
 }
 
 #[tauri::command]

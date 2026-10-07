@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
+import type { Details } from "../model/details";
 import {
+  describeHit,
   describeResults,
   folderOf,
   highlight,
   initialSearch,
   keepSelection,
+  latestDetails,
   latestOnly,
   moveSelection,
   revealHit,
@@ -38,6 +41,8 @@ type Props = {
 export function SearchView({ total, active, onActiveChange }: Props) {
   const [state, setState] = useState(initialSearch);
   const search = useMemo(() => latestOnly(), []);
+  const loadDetails = useMemo(() => latestDetails(), []);
+  const [details, setDetails] = useState<Record<string, Details>>({});
   const field = useRef<HTMLInputElement>(null);
   const rows = useRef<(HTMLLIElement | null)[]>([]);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
@@ -71,6 +76,15 @@ export function SearchView({ total, active, onActiveChange }: Props) {
   useEffect(() => {
     rows.current[state.selected]?.scrollIntoView({ block: "nearest" });
   }, [state.selected, state.hits]);
+
+  // Details follow the results; until they arrive a row keeps what it showed before.
+  useEffect(() => {
+    void loadDetails(state.hits).then((found) => {
+      if (found) {
+        setDetails(found);
+      }
+    });
+  }, [state.hits, loadDetails]);
 
   const run = (query: string) => {
     setState((s) => ({ ...s, query }));
@@ -239,6 +253,7 @@ export function SearchView({ total, active, onActiveChange }: Props) {
                     </span>
                     <span className="result-path">{folderOf(hit.path)}</span>
                   </span>
+                  <HitMeta meta={describeHit(details[hit.path])} />
                 </li>
               ))}
             </ul>
@@ -256,6 +271,19 @@ export function SearchView({ total, active, onActiveChange }: Props) {
       )}
       {notice !== null && <Toast key={notice.id} text={notice.text} tone={notice.tone} />}
     </div>
+  );
+}
+
+/** Type and size over the last-changed date, at the right of a result. */
+function HitMeta({ meta }: { meta: { kind: string; modified: string } | null }) {
+  if (meta === null) {
+    return null;
+  }
+  return (
+    <span className="result-meta">
+      <span>{meta.kind}</span>
+      <span>{meta.modified}</span>
+    </span>
   );
 }
 

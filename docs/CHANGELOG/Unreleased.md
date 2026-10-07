@@ -74,6 +74,11 @@
     an argument, so a name with spaces or `;` opens the right place.
   - A copy is confirmed by a short note above the status bar; a failure (for example
     `claude` not found on PATH) is shown there in red.
+- Each result shows what it is, how big it is and when it last changed, at the right
+  of its row: Explorer's name for the type (for example "PDF Document" or "File
+  folder"), the size for files, and the last-modified date in your system's format.
+  They are read from the disk after the results appear, so searching is as fast as
+  before; a page of 200 results takes a few milliseconds more to fill in.
 
 ### Changed
 

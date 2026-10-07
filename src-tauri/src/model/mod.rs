@@ -2,6 +2,7 @@
 
 pub mod about;
 pub mod db;
+pub mod details;
 pub mod drives;
 pub mod elevation;
 pub mod index;

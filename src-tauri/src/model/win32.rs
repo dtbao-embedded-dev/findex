@@ -14,8 +14,10 @@ use windows_sys::Win32::Security::{
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
-    FILE_ATTRIBUTE_DIRECTORY, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    OPEN_EXISTING,
 };
+use windows_sys::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
 use windows_sys::Win32::System::Diagnostics::Debug::{SetThreadErrorMode, SEM_FAILCRITICALERRORS};
 use windows_sys::Win32::System::Ioctl::{
     FSCTL_ENUM_USN_DATA, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, MFT_ENUM_DATA_V1,
@@ -30,7 +32,9 @@ use windows_sys::Win32::System::Threading::{
 };
 use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOVABLE};
 use windows_sys::Win32::System::IO::DeviceIoControl;
-use windows_sys::Win32::UI::Shell::ShellExecuteW;
+use windows_sys::Win32::UI::Shell::{
+    SHGetFileInfoW, ShellExecuteW, SHFILEINFOW, SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetShellWindow, GetWindowThreadProcessId, SW_SHOWNORMAL,
 };
@@ -411,6 +415,39 @@ pub fn run_elevated(exe: &std::path::Path, args: &str) -> bool {
     };
     // ShellExecute reports success as a value above 32.
     result as isize > 32
+}
+
+/// Explorer's name for a type, such as "PDF Document": for files ending in `.ext`,
+/// or for folders when `ext` is `None`. Asks the shell's registry of types without
+/// touching the disk; `None` when the shell has no name for it.
+pub fn file_type_name(ext: Option<&str>) -> Option<String> {
+    let (name, attributes) = match ext {
+        Some(ext) => (format!("file.{ext}"), FILE_ATTRIBUTE_NORMAL),
+        None => ("folder".to_owned(), FILE_ATTRIBUTE_DIRECTORY),
+    };
+    let name = wide(&name);
+    // SAFETY: the reserved pointer must be null. Any success (S_OK, or S_FALSE when
+    // this thread was already initialised) is balanced by CoUninitialize below.
+    let com = unsafe { CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32) };
+    // SAFETY: a plain C struct whose all-zero value is valid.
+    let mut info: SHFILEINFOW = unsafe { std::mem::zeroed() };
+    // SAFETY: `name` is NUL-terminated and outlives the call; `info` is one
+    // SHFILEINFOW and its exact size is passed with it.
+    let ok = unsafe {
+        SHGetFileInfoW(
+            name.as_ptr(),
+            attributes,
+            &mut info,
+            std::mem::size_of::<SHFILEINFOW>() as u32,
+            SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES,
+        )
+    };
+    if com >= 0 {
+        // SAFETY: balances the successful CoInitializeEx above, on the same thread.
+        unsafe { CoUninitialize() };
+    }
+    let text = from_wide(&info.szTypeName);
+    (ok != 0 && !text.is_empty()).then_some(text)
 }
 
 /// A process or thread handle, closed on drop.

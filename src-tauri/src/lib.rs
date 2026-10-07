@@ -59,6 +59,7 @@ pub fn run() -> tauri::Result<()> {
             commands::set_active_drive,
             commands::index_status,
             commands::search_names,
+            commands::describe_paths,
             commands::reveal_path,
             commands::open_folder,
             commands::open_terminal,
