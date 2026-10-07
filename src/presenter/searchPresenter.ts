@@ -100,7 +100,7 @@ export type Segment = { text: string; match: boolean };
 
 /**
  * Splits `name` into runs, marking where each query term occurs, so the view can
- * show why a result matched. Filters (`ext:`, `type:`) mark nothing.
+ * show why a result matched. Filters (`ext:`, `type:`, `tag:`) mark nothing.
  */
 export function highlight(name: string, query: string): Segment[] {
   const lower = name.toLowerCase();
@@ -110,7 +110,7 @@ export function highlight(name: string, query: string): Segment[] {
   }
   const marks = new Array<boolean>(name.length).fill(false);
   for (const token of query.toLowerCase().split(/\s+/)) {
-    if (token === "" || token.startsWith("ext:") || token.startsWith("type:")) {
+    if (token === "" || /^(ext|type|tag):/.test(token)) {
       continue;
     }
     const at = lower.indexOf(token);

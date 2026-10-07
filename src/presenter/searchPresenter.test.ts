@@ -147,6 +147,12 @@ describe("revealHit", () => {
   });
 });
 
+describe("highlight with filters", () => {
+  it("marks nothing for a tag filter", () => {
+    expect(highlight("work", "tag:work")).toEqual([{ text: "work", match: false }]);
+  });
+});
+
 describe("describeHit", () => {
   const date = (ms: number) => new Date(ms).toISOString().slice(0, 10);
   const details = (more: Partial<Details>): Details => ({
@@ -154,6 +160,7 @@ describe("describeHit", () => {
     kind: "PDF Document",
     size: 2.4 * 1024 * 1024,
     modified: Date.UTC(2026, 9, 5),
+    tags: [],
     ...more,
   });
 
@@ -179,7 +186,7 @@ describe("describeHit", () => {
 
 describe("latestDetails", () => {
   it("indexes the details by path", async () => {
-    const load = latestDetails(async (paths) => paths.map((path) => ({ path, kind: "x", size: 1, modified: 2 })));
+    const load = latestDetails(async (paths) => paths.map((path) => ({ path, kind: "x", size: 1, modified: 2, tags: [] })));
     const found = await load([hit("C:\a.txt"), hit("C:\b.txt")]);
     expect(Object.keys(found ?? {})).toEqual(["C:\a.txt", "C:\b.txt"]);
   });
@@ -189,8 +196,8 @@ describe("latestDetails", () => {
     const load = latestDetails(() => new Promise((resolve) => pending.push(resolve)));
     const first = load([hit("C:\old.txt")]);
     const second = load([hit("C:\new.txt")]);
-    pending[1]?.([{ path: "C:\new.txt", kind: "x", size: 1, modified: 1 }]);
-    pending[0]?.([{ path: "C:\old.txt", kind: "x", size: 1, modified: 1 }]);
+    pending[1]?.([{ path: "C:\new.txt", kind: "x", size: 1, modified: 1, tags: [] }]);
+    pending[0]?.([{ path: "C:\old.txt", kind: "x", size: 1, modified: 1, tags: [] }]);
     expect(await first).toBeNull();
     expect(Object.keys((await second) ?? {})).toEqual(["C:\new.txt"]);
   });

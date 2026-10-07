@@ -35,6 +35,7 @@ describe("menuFor", () => {
       "Open in Terminal",
       "Copy path",
       "Copy name",
+      "Tags…",
     ]);
   });
 
@@ -48,7 +49,7 @@ describe("menuFor", () => {
 
   it("separates the open actions from the copy actions", () => {
     const groups = menuFor(folder).map((item) => item.group);
-    expect(groups).toEqual([0, 0, 0, 1, 1]);
+    expect(groups).toEqual([0, 0, 0, 1, 1, 2]);
   });
 });
 

@@ -483,6 +483,14 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
+/* The name, then the folder's tags, on one line that never wraps. */
+.result-line {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
 .result-name,
 .result-path {
   overflow: hidden;
@@ -580,6 +588,109 @@ kbd {
   height: 1px;
   margin: 0.3125rem 0.5rem;
   background: var(--hairline);
+}
+
+/* Tags: tinted chips. On a row they are small and quiet; elsewhere they are buttons. */
+.tag-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+.tag-chip.is-small {
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.tag-chip.is-suggestion {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+.tag-chip.is-suggestion:hover,
+.tag-chip.is-small:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.tag-chip button {
+  padding: 0 0.125rem;
+  color: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  background: transparent;
+  border-radius: 999px;
+}
+
+.tag-count {
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem;
+  max-width: 32rem;
+  margin-top: 1rem;
+}
+
+/* The tag editor: a solid panel that grows out of the menu that opened it. */
+.tag-editor {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: 18rem;
+  padding: 0.875rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.2), var(--shadow);
+  animation: pop-in 150ms var(--ease) both;
+}
+
+.tag-editor-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tag-editor-title strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.tag-none {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.tag-error {
+  margin: 0;
+  font-size: 0.8125rem;
 }
 
 /* A short confirmation over the status bar; errors stay a little longer. */
@@ -741,6 +852,7 @@ kbd {
 
   .drive-menu,
   .context-menu,
+  .tag-editor,
   .toast {
     animation: fade 150ms ease both;
   }

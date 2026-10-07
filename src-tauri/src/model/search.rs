@@ -42,12 +42,18 @@ pub struct Query {
     terms: Vec<String>,
     exts: Vec<String>,
     kind: Kind,
+    /// `tag:` filters; the index holds no tags, so `find` answers these from the tags table.
+    tags: Vec<String>,
 }
 
 impl Query {
     /// True when nothing in the query selects anything; such a query lists nothing.
     pub fn is_empty(&self) -> bool {
         self.terms.is_empty() && self.exts.is_empty()
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
     }
 }
 
@@ -67,6 +73,7 @@ pub fn parse(text: &str) -> Query {
         terms: Vec::new(),
         exts: Vec::new(),
         kind: Kind::Any,
+        tags: Vec::new(),
     };
     for token in text.split_whitespace() {
         let lower = token.to_lowercase();
@@ -77,6 +84,13 @@ pub fn parse(text: &str) -> Query {
                     .filter(|ext| !ext.is_empty())
                     .map(str::to_owned),
             );
+        } else if let Some(list) = lower.strip_prefix("tag:") {
+            query.tags.extend(
+                list.split([';', ','])
+                    .map(|tag| tag.trim_start_matches('#'))
+                    .filter(|tag| !tag.is_empty())
+                    .map(str::to_owned),
+            );
         } else if let Some(kind) = lower.strip_prefix("type:").and_then(kind_of) {
             query.kind = kind;
         } else {
@@ -84,6 +98,17 @@ pub fn parse(text: &str) -> Query {
         }
     }
     query
+}
+
+/// How well one name answers `query`, ranked as the index search ranks it; `None`
+/// when it does not match. For results found outside the index, such as tags.
+pub fn rank_name(query: &Query, name: &str, is_dir: bool) -> Option<u32> {
+    let lower = name.to_lowercase();
+    // The matcher leaves the longest term to the arena search; here it is checked too.
+    if !query.terms.iter().all(|term| lower.contains(term.as_str())) {
+        return None;
+    }
+    Matcher::new(query).check(&lower, is_dir)
 }
 
 fn kind_of(word: &str) -> Option<Kind> {
@@ -421,6 +446,23 @@ mod tests {
         assert_eq!(names(&volumes, "notes ext:pdf"), ["notes.pdf"]);
         assert_eq!(names(&volumes, "notes type:folder"), ["notes"]);
         assert_eq!(names(&volumes, "ext:md"), ["notes.md"]);
+    }
+
+    #[test]
+    fn tag_filters_are_kept_apart_from_name_terms() {
+        let query = parse("proj tag:Work;fw TAG:esp");
+        assert_eq!(query.tags(), ["work", "fw", "esp"]);
+        assert_eq!(query.terms, ["proj"]);
+    }
+
+    #[test]
+    fn ranks_one_name_like_the_index_search_does() {
+        let query = parse("report ext:pdf");
+        assert_eq!(rank_name(&query, "Report.PDF", false), Some(3));
+        assert_eq!(rank_name(&query, "annual-report.pdf", false), Some(1));
+        assert_eq!(rank_name(&query, "report.txt", false), None);
+        assert_eq!(rank_name(&parse("tag:x"), "Anything", true), Some(0));
+        assert_eq!(rank_name(&parse("type:file tag:x"), "Folder", true), None);
     }
 
     #[test]

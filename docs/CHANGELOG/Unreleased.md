@@ -79,6 +79,15 @@
   folder"), the size for files, and the last-modified date in your system's format.
   They are read from the disk after the results appear, so searching is as fast as
   before; a page of 200 results takes a few milliseconds more to fill in.
+- Folders can be tagged. Right-click a folder and choose Tags… to add a tag (Enter) or
+  remove one; tags already in use are offered with one press.
+  - **Finding them:** `tag:work` lists the folders tagged `work`, on any drive, and
+    combines with name words (`proj tag:work`) and several tags (`tag:work;fw`).
+  - **Where they show:** as chips beside a folder's name in the results, and on the
+    empty search screen with how many folders carry each; pressing one searches it.
+  - **What a tag is:** one word of up to 32 letters, digits, `-` or `_`, stored in
+    lower case. Tags are saved in the app's database, keyed by the folder's path, so a
+    folder that is renamed or moved loses its tags.
 
 ### Changed
 

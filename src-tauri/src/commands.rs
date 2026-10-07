@@ -9,10 +9,12 @@ use crate::model::about::{self, About};
 use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
+use crate::model::find;
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
 use crate::model::search::{Hit, DEFAULT_LIMIT};
+use crate::model::tags::{self, TagCount};
 use crate::splash;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -89,28 +91,46 @@ pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
 }
 
 /// Runs off the async runtime: a query is CPU work across every core. Resolves to
-/// null when a newer query replaced this one.
+/// null when a newer query replaced this one. `tag:` queries read the tags table.
 #[tauri::command]
 pub async fn search_names(
-    index: State<'_, Arc<IndexService>>,
+    app: AppHandle,
     query: String,
     limit: Option<usize>,
 ) -> AppResult<Option<Vec<Hit>>> {
-    let index = Arc::clone(&index);
     tauri::async_runtime::spawn_blocking(move || {
-        index.search(&query, limit.unwrap_or(DEFAULT_LIMIT))
+        let db = app.state::<Db>();
+        let index = app.state::<Arc<IndexService>>();
+        find::search(&db, &index, &query, limit.unwrap_or(DEFAULT_LIMIT))
     })
     .await
-    .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))
+    .map_err(|err| AppError::Invalid(format!("the search stopped: {err}")))?
 }
 
-/// Type, size and date for the results on screen. Off the async runtime: it waits
-/// on the disk.
+/// Type, size, date and tags for the results on screen. Off the async runtime: it
+/// waits on the disk.
 #[tauri::command]
-pub async fn describe_paths(paths: Vec<String>) -> AppResult<Vec<Details>> {
-    tauri::async_runtime::spawn_blocking(move || details::describe(&paths))
-        .await
-        .map_err(|err| AppError::Invalid(format!("reading file details stopped: {err}")))
+pub async fn describe_paths(app: AppHandle, paths: Vec<String>) -> AppResult<Vec<Details>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        details::describe_tagged(&app.state::<Db>(), &paths)
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("reading file details stopped: {err}")))?
+}
+
+#[tauri::command]
+pub fn add_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<String>> {
+    tags::add(&db, path, tag)
+}
+
+#[tauri::command]
+pub fn remove_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<String>> {
+    tags::remove(&db, path, tag)
+}
+
+#[tauri::command]
+pub fn list_tags(db: State<'_, Db>) -> AppResult<Vec<TagCount>> {
+    tags::all(&db)
 }
 
 #[tauri::command]

@@ -10,7 +10,9 @@ use std::time::UNIX_EPOCH;
 use rayon::prelude::*;
 use serde::Serialize;
 
-use crate::model::win32;
+use crate::error::AppResult;
+use crate::model::db::Db;
+use crate::model::{tags, win32};
 
 /// One result's details, as the result row shows them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -23,6 +25,8 @@ pub struct Details {
     pub size: Option<u64>,
     /// Last change, in milliseconds since the Unix epoch.
     pub modified: Option<i64>,
+    /// The folder's tags, sorted; files carry none.
+    pub tags: Vec<String>,
 }
 
 /// The details of every path that still exists, in the order given; a path deleted
@@ -50,9 +54,22 @@ pub fn describe(paths: &[String]) -> Vec<Details> {
                     .ok()
                     .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                     .and_then(|since| i64::try_from(since.as_millis()).ok()),
+                tags: Vec::new(),
             }
         })
         .collect()
+}
+
+/// [`describe`], with each folder's tags filled in from the tags table.
+pub fn describe_tagged(db: &Db, paths: &[String]) -> AppResult<Vec<Details>> {
+    let mut found = describe(paths);
+    let mut tagged = tags::for_paths(db, paths)?;
+    for details in &mut found {
+        if let Some(tags) = tagged.remove(&details.path) {
+            details.tags = tags;
+        }
+    }
+    Ok(found)
 }
 
 /// The type name for an extension (`None` for a folder), asked of the shell once
@@ -148,6 +165,17 @@ mod tests {
             found.iter().map(|d| d.path.clone()).collect::<Vec<_>>(),
             [kept.display().to_string()]
         );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_folder_carries_its_tags() {
+        let db = crate::model::db::open_in_memory().unwrap();
+        let dir = scratch("tagged");
+        let path = dir.display().to_string();
+        tags::add(&db, &path, "work").unwrap();
+        let found = describe_tagged(&db, &[path]).unwrap();
+        assert_eq!(found[0].tags, ["work"]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

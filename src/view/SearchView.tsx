@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { Details } from "../model/details";
+import type { Hit } from "../model/search";
+import type { TagCount } from "../model/tags";
 import {
   describeHit,
   describeResults,
@@ -15,12 +17,17 @@ import {
 } from "../presenter/searchPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
+import { loadTags, tagQuery } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
 import { DrivePicker } from "./DrivePicker";
+import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
 
 /** The open right-click menu: where it was asked for, and for which result. */
 type OpenMenu = { at: { x: number; y: number }; index: number };
+
+/** The folder whose tags are being edited, where its menu was, and its tags now. */
+type Editing = { at: { x: number; y: number }; folder: Hit; tags: string[] };
 
 /** A short message over the status bar; `id` restarts its timer when it repeats. */
 type Notice = { text: string; tone: "info" | "error"; id: number };
@@ -47,6 +54,8 @@ export function SearchView({ total, active, onActiveChange }: Props) {
   const rows = useRef<(HTMLLIElement | null)[]>([]);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [tagsInUse, setTagsInUse] = useState<TagCount[]>([]);
   // Set when the keyboard opened the menu, so the field's own menu stays shut.
   const menuByKey = useRef(false);
 
@@ -65,6 +74,24 @@ export function SearchView({ total, active, onActiveChange }: Props) {
     setMenu(null);
     field.current?.focus();
   }, []);
+
+  const closeEditor = useCallback(() => {
+    setEditing(null);
+    field.current?.focus();
+  }, []);
+
+  // The tags in use, offered on the empty screen; read again after every edit.
+  useEffect(() => {
+    void loadTags().then(setTagsInUse);
+  }, []);
+
+  const tagsChanged = (path: string, tags: string[]) => {
+    setDetails((d) => {
+      const known = d[path];
+      return known ? { ...d, [path]: { ...known, tags } } : d;
+    });
+    void loadTags().then(setTagsInUse);
+  };
 
   // Coming back from the tray or another window, typing goes straight to the field.
   useEffect(() => {
@@ -135,7 +162,9 @@ export function SearchView({ total, active, onActiveChange }: Props) {
   const pick = (action: MenuAction) => {
     const hit = menu ? state.hits[menu.index] : undefined;
     closeMenu();
-    if (hit) {
+    if (hit && menu && action === "tags") {
+      setEditing({ at: menu.at, folder: hit, tags: details[hit.path]?.tags ?? [] });
+    } else if (hit) {
       void runAction(action, hit).then((result) => {
         if (result.error !== null) {
           show(result.error, "error");
@@ -214,8 +243,28 @@ export function SearchView({ total, active, onActiveChange }: Props) {
               Search {total.toLocaleString("en-US")} items{active !== null && ` on ${active}:`}
             </p>
             <p className="empty-hint">
-              Type part of a name. Narrow with <kbd>ext:pdf</kbd> or <kbd>type:folder</kbd>.
+              Type part of a name. Narrow with <kbd>ext:pdf</kbd>, <kbd>type:folder</kbd> or{" "}
+              <kbd>tag:work</kbd>.
             </p>
+            {tagsInUse.length > 0 && (
+              <div className="empty-tags" aria-label="Tags">
+                {tagsInUse.map((t) => (
+                  <button
+                    key={t.tag}
+                    type="button"
+                    className="tag-chip"
+                    title={`${t.folders} folder${t.folders === 1 ? "" : "s"}`}
+                    onClick={() => {
+                      run(tagQuery(t.tag));
+                      field.current?.focus();
+                    }}
+                  >
+                    #{t.tag}
+                    <span className="tag-count">{t.folders}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : state.hits.length === 0 && state.tookMs !== null ? (
           <div className="empty">
@@ -246,10 +295,27 @@ export function SearchView({ total, active, onActiveChange }: Props) {
                 >
                   <KindGlyph folder={hit.isDir} />
                   <span className="result-text">
-                    <span className="result-name">
-                      {highlight(hit.name, state.query).map((part, i) =>
-                        part.match ? <mark key={i}>{part.text}</mark> : part.text,
-                      )}
+                    <span className="result-line">
+                      <span className="result-name">
+                        {highlight(hit.name, state.query).map((part, i) =>
+                          part.match ? <mark key={i}>{part.text}</mark> : part.text,
+                        )}
+                      </span>
+                      {details[hit.path]?.tags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          className="tag-chip is-small"
+                          tabIndex={-1}
+                          title={`Show folders tagged ${tag}`}
+                          onClick={() => {
+                            run(tagQuery(tag));
+                            field.current?.focus();
+                          }}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
                     </span>
                     <span className="result-path">{folderOf(hit.path)}</span>
                   </span>
@@ -267,6 +333,18 @@ export function SearchView({ total, active, onActiveChange }: Props) {
           items={menuFor(state.hits[menu.index]!)}
           onPick={pick}
           onClose={closeMenu}
+        />
+      )}
+      {editing !== null && (
+        <TagEditor
+          at={editing.at}
+          folder={editing.folder}
+          tags={editing.tags}
+          onChange={(tags) => {
+            setEditing((e) => e && { ...e, tags });
+            tagsChanged(editing.folder.path, tags);
+          }}
+          onClose={closeEditor}
         />
       )}
       {notice !== null && <Toast key={notice.id} text={notice.text} tone={notice.tone} />}

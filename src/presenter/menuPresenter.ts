@@ -2,7 +2,14 @@ import { copyText } from "../model/clipboard";
 import { openClaude, openFolder, openTerminal } from "../model/launch";
 import { revealPath, type Hit } from "../model/search";
 
-export type MenuAction = "claude" | "folder" | "terminal" | "reveal" | "copyPath" | "copyName";
+export type MenuAction =
+  | "claude"
+  | "folder"
+  | "terminal"
+  | "reveal"
+  | "copyPath"
+  | "copyName"
+  | "tags";
 
 /** One menu entry; a change of `group` draws a separator before it. */
 export type MenuItem = { action: MenuAction; label: string; group: number };
@@ -24,7 +31,7 @@ const MODEL: ActionDeps = {
   copy: copyText,
 };
 
-/** What a right-click on a result offers: opening it first, then copying. */
+/** What a right-click on a result offers: opening it, copying, then a folder's tags. */
 export function menuFor(hit: Hit): MenuItem[] {
   const open: MenuItem[] = hit.isDir
     ? [
@@ -37,12 +44,14 @@ export function menuFor(hit: Hit): MenuItem[] {
     ...open,
     { action: "copyPath", label: "Copy path", group: 1 },
     { action: "copyName", label: "Copy name", group: 1 },
+    ...(hit.isDir ? [{ action: "tags" as const, label: "Tags…", group: 2 }] : []),
   ];
 }
 
 /**
  * Runs one menu action on `hit`. A copy changes nothing on screen, so it comes back
- * with a notice confirming it; opening shows its own window.
+ * with a notice confirming it; opening shows its own window. "tags" opens the tag
+ * editor, which is the view's to show, so it does nothing here.
  */
 export async function runAction(
   action: MenuAction,
@@ -69,6 +78,8 @@ export async function runAction(
       case "copyName":
         await deps.copy(hit.name);
         return { notice: "Name copied", error: null };
+      case "tags":
+        return { notice: null, error: null };
     }
   } catch (err) {
     return { notice: null, error: String(err) };

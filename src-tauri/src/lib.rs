@@ -63,7 +63,10 @@ pub fn run() -> tauri::Result<()> {
             commands::reveal_path,
             commands::open_folder,
             commands::open_terminal,
-            commands::open_claude
+            commands::open_claude,
+            commands::add_tag,
+            commands::remove_tag,
+            commands::list_tags
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

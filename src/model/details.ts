@@ -9,9 +9,11 @@ export type Details = {
   size: number | null;
   /** Last change, in milliseconds since the Unix epoch. */
   modified: number | null;
+  /** The folder's tags, sorted; files carry none. */
+  tags: string[];
 };
 
-/** Details for each path that still exists; deleted ones are left out. */
+/** Details and tags for each path that still exists; deleted ones are left out. */
 export function describePaths(paths: string[]): Promise<Details[]> {
   return invoke<Details[]>("describe_paths", { paths });
 }
