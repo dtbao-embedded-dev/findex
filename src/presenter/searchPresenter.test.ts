@@ -37,7 +37,15 @@ describe("latestOnly", () => {
     expect(await first).toBeNull();
   });
 
-  it("treats a search Rust cancelled as superseded", async () => {
+  it("asks again when Rust cancelled the latest search for an older one", async () => {
+    // Two searches can reach Rust out of order; the older then cancels the newer.
+    let calls = 0;
+    const search = latestOnly(async () => (++calls === 1 ? null : [hit("C:\\x.txt")]));
+    expect(await search("x")).toMatchObject({ hits: [hit("C:\\x.txt")] });
+    expect(calls).toBe(2);
+  });
+
+  it("gives up after one retry", async () => {
     const search = latestOnly(async () => null);
     expect(await search("x")).toBeNull();
   });

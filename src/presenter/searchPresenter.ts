@@ -38,8 +38,13 @@ export function latestOnly(
     }
     const start = now();
     try {
-      const hits = await ask(query);
-      // Rust answers null when it cancelled this search for a newer one.
+      let hits = await ask(query);
+      // Rust answers null when it cancelled this search for one that reached it
+      // later. Calls can reach Rust out of order, so an older keystroke may have
+      // cancelled this, the newest: ask once more, and it then wins.
+      if (hits === null && mine === latest) {
+        hits = await ask(query);
+      }
       if (mine !== latest || hits === null) {
         return null;
       }
