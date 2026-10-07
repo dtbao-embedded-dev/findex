@@ -90,18 +90,22 @@ describe("a check asked for from the tray", () => {
     });
   });
 
-  it("ignores a second check while one runs", async () => {
+  it("answers a tray check that arrives while a background check runs", async () => {
     let fetches = 0;
     let release: (value: Downloaded | null) => void = () => {};
     const h = harness(() => {
       fetches += 1;
       return new Promise((resolve) => (release = resolve));
     });
-    const first = h.updater.check(false);
-    await h.updater.check(true);
+    const quiet = h.updater.check(false);
+    const loud = h.updater.check(true);
     release(null);
-    await first;
+    await Promise.all([quiet, loud]);
     expect(fetches).toBe(1);
+    expect(h.states).toEqual([
+      { kind: "checking" },
+      { kind: "message", text: "Findex is up to date.", tone: "info" },
+    ]);
   });
 });
 
@@ -132,6 +136,14 @@ describe("restart", () => {
       text: "Could not install the update: signature mismatch",
       tone: "error",
     });
+  });
+
+  it("installs once when Restart is pressed twice", async () => {
+    const calls: string[] = [];
+    const h = harness(async () => downloaded("0.2.0", calls));
+    await h.updater.check(false);
+    await Promise.all([h.updater.restart(), h.updater.restart()]);
+    expect(calls).toEqual(["install 0.2.0"]);
   });
 
   it("does nothing before an update is ready", async () => {

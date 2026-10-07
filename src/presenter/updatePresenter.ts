@@ -23,47 +23,61 @@ type Deps = {
  * tray always answers, with "up to date" or the reason it failed.
  */
 export function createUpdater({ fetch = fetchUpdate, save = saveIndex, onState }: Deps) {
-  let running = false;
+  // The check in flight, shared by every caller; `loud` once the tray asked for it.
+  let pending: Promise<void> | null = null;
+  let loud = false;
+  let restarting = false;
   let ready: Downloaded | null = null;
 
-  const check = async (manual: boolean): Promise<void> => {
-    if (running) {
-      return;
-    }
-    // Downloaded already: offer it again rather than fetching it twice.
-    if (ready) {
-      onState({ kind: "ready", version: ready.version });
-      return;
-    }
-    running = true;
-    if (manual) {
-      onState({ kind: "checking" });
-    }
+  const run = async (): Promise<void> => {
     try {
       ready = await fetch();
       if (ready) {
         onState({ kind: "ready", version: ready.version });
       } else {
         onState(
-          manual ? { kind: "message", text: "Findex is up to date.", tone: "info" } : { kind: "idle" },
+          loud ? { kind: "message", text: "Findex is up to date.", tone: "info" } : { kind: "idle" },
         );
       }
     } catch (err) {
       onState(
-        manual
+        loud
           ? { kind: "message", text: `Could not check for updates: ${String(err)}`, tone: "error" }
           : { kind: "idle" },
       );
     } finally {
-      running = false;
+      pending = null;
+      loud = false;
     }
   };
 
-  /** Saves the live index, then installs; a failed save only means a rebuild later. */
+  /**
+   * Checks now. A check asked for while another runs joins it rather than fetching
+   * twice, and still gets its answer.
+   */
+  const check = (manual: boolean): Promise<void> => {
+    // Downloaded already: offer it again rather than fetching it twice.
+    if (ready) {
+      onState({ kind: "ready", version: ready.version });
+      return Promise.resolve();
+    }
+    if (manual) {
+      loud = true;
+      onState({ kind: "checking" });
+    }
+    pending ??= run();
+    return pending;
+  };
+
+  /**
+   * Saves the live index, then installs; a failed save only means a rebuild later.
+   * A second press while installing does nothing.
+   */
   const restart = async (): Promise<void> => {
-    if (!ready) {
+    if (!ready || restarting) {
       return;
     }
+    restarting = true;
     try {
       await save();
     } catch {
@@ -72,6 +86,7 @@ export function createUpdater({ fetch = fetchUpdate, save = saveIndex, onState }
     try {
       await ready.install();
     } catch (err) {
+      restarting = false;
       onState({
         kind: "message",
         text: `Could not install the update: ${String(err)}`,
