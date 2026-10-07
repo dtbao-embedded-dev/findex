@@ -8,6 +8,11 @@
 
 - Release builds are signed for the updater: the real public key is embedded, so the
   first published version can receive later updates without a manual reinstall.
+- A file and folder name search engine. It keeps each drive's names in one compact
+  in-memory index and searches it on every core at once. Every typed word must appear
+  in the name; `ext:pdf;docx` and `type:file` / `type:folder` narrow the results.
+  Matches rank as exact name, then prefix, then word start, then anywhere. A million
+  names answer in about 15 ms, so results can follow every keystroke.
 
 ### Changed
 
