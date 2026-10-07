@@ -1,10 +1,15 @@
 import { fetchUpdate, onCheckRequested, saveIndex, type Downloaded } from "../model/updater";
 
-/** What the update banner shows. */
+/**
+ * What the update banner and the title bar's update button show. "deferred" is a
+ * downloaded update the user put off with Later: no banner, but the button keeps
+ * its mark until it is installed.
+ */
 export type UpdateState =
   | { kind: "idle" }
   | { kind: "checking" }
   | { kind: "ready"; version: string }
+  | { kind: "deferred"; version: string }
   | { kind: "message"; text: string; tone: "info" | "error" };
 
 /** The first check waits for the app to settle; then one every six hours. */
@@ -96,9 +101,26 @@ export function createUpdater({ fetch = fetchUpdate, save = saveIndex, onState }
   };
 
   /** Hides the banner; the download is kept and offered again at the next check. */
-  const later = (): void => onState({ kind: "idle" });
+  const later = (): void =>
+    onState(ready ? { kind: "deferred", version: ready.version } : { kind: "idle" });
 
   return { check, restart, later };
+}
+
+/**
+ * The title bar's update button: it checks now, or, with an update downloaded,
+ * carries a mark and offers it again.
+ */
+export function updateButton(state: UpdateState): { label: string; badge: boolean; busy: boolean } {
+  switch (state.kind) {
+    case "checking":
+      return { label: "Checking for updates…", badge: false, busy: true };
+    case "ready":
+    case "deferred":
+      return { label: `Findex ${state.version} is ready to install`, badge: true, busy: false };
+    default:
+      return { label: "Check for updates", badge: false, busy: false };
+  }
 }
 
 type Timers = {

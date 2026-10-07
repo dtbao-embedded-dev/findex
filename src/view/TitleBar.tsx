@@ -1,5 +1,6 @@
 import iconUrl from "../../src-tauri/icons/icon.svg";
 import type { TitleState } from "../presenter/aboutPresenter";
+import { updateButton, type UpdateState } from "../presenter/updatePresenter";
 
 type Props = {
   title: TitleState;
@@ -7,11 +8,16 @@ type Props = {
   onToggleMaximize: () => Promise<void>;
   onClose: () => Promise<void>;
   onSettings: () => void;
+  /** Where updates stand, for the update button. */
+  update: UpdateState;
+  /** Checks for an update now, or offers the downloaded one again. */
+  onUpdate: () => void;
 };
 
 /**
  * The custom title bar that replaces the native one (`decorations: false`): the app
- * icon, its name and version; the app's own tools; then the window buttons.
+ * icon, its name and version; the app's own tools (updates, then settings); then
+ * the window buttons.
  * Dragging needs no code: `data-tauri-drag-region` makes Tauri move the window.
  */
 export function TitleBar({
@@ -20,7 +26,10 @@ export function TitleBar({
   onToggleMaximize,
   onClose,
   onSettings,
+  update,
+  onUpdate,
 }: Props) {
+  const updates = updateButton(update);
   return (
     <header className="titlebar" data-tauri-drag-region>
       <span className="titlebar-brand" data-tauri-drag-region>
@@ -43,6 +52,26 @@ export function TitleBar({
         )}
       </span>
       <div className="titlebar-tools">
+        <button
+          type="button"
+          className={updates.busy ? "titlebar-tool is-busy" : "titlebar-tool"}
+          aria-label={updates.label}
+          title={updates.label}
+          disabled={updates.busy}
+          onClick={onUpdate}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              d="M10 3.25v9.5M6 8.75l4 4 4-4M4 16.25h12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {updates.badge && <span className="titlebar-badge" aria-hidden="true" />}
+        </button>
         <button
           type="button"
           className="titlebar-tool"

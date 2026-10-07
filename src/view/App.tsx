@@ -99,6 +99,8 @@ export function App() {
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
         onSettings={() => setSettingsOpen(true)}
+        update={update}
+        onUpdate={() => void updater.check(true)}
       />
       <SearchView
         total={status.total}

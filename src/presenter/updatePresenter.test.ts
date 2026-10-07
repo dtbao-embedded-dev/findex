@@ -6,6 +6,7 @@ import {
   FIRST_CHECK_MS,
   createUpdater,
   scheduleChecks,
+  updateButton,
   type UpdateState,
 } from "./updatePresenter";
 
@@ -65,7 +66,8 @@ describe("a scheduled check", () => {
     });
     await h.updater.check(false);
     h.updater.later();
-    expect(h.last()).toEqual({ kind: "idle" });
+    // Put away, but still downloaded: the title bar keeps a mark for it.
+    expect(h.last()).toEqual({ kind: "deferred", version: "0.2.0" });
     await h.updater.check(false);
     expect(fetches).toBe(1);
     expect(h.last()).toEqual({ kind: "ready", version: "0.2.0" });
@@ -170,5 +172,29 @@ describe("scheduleChecks", () => {
     expect(CHECK_EVERY_MS).toBe(6 * 60 * 60 * 1000);
     stop();
     expect(cleared).toEqual([0, 1]);
+  });
+});
+
+describe("updateButton", () => {
+  it("checks when nothing is waiting, and marks a downloaded update", () => {
+    expect(updateButton({ kind: "idle" })).toEqual({
+      label: "Check for updates",
+      badge: false,
+      busy: false,
+    });
+    expect(updateButton({ kind: "checking" })).toEqual({
+      label: "Checking for updates…",
+      badge: false,
+      busy: true,
+    });
+    expect(updateButton({ kind: "ready", version: "0.2.0" })).toEqual({
+      label: "Findex 0.2.0 is ready to install",
+      badge: true,
+      busy: false,
+    });
+    expect(updateButton({ kind: "deferred", version: "0.2.0" }).badge).toBe(true);
+    expect(updateButton({ kind: "message", text: "Findex is up to date.", tone: "info" }).badge).toBe(
+      false,
+    );
   });
 });

@@ -339,6 +339,7 @@ button:focus-visible {
 }
 
 .titlebar-tool {
+  position: relative;
   display: grid;
   place-items: center;
   width: 1.875rem;
@@ -357,6 +358,24 @@ button:focus-visible {
 .titlebar-tool svg {
   width: 1.0625rem;
   height: 1.0625rem;
+}
+
+/* A check in progress: the arrow waits, in the accent colour. */
+.titlebar-tool.is-busy {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* An update downloaded and waiting: a small accent dot on the button's corner. */
+.titlebar-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.3125rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--chrome);
 }
 
 @keyframes spin {

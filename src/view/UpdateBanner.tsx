@@ -21,7 +21,7 @@ export function UpdateBanner({ state, onRestart, onLater }: Props) {
     return () => clearTimeout(timer);
   }, [state, onLater]);
 
-  if (state.kind === "idle") {
+  if (state.kind === "idle" || state.kind === "deferred") {
     return null;
   }
   return (

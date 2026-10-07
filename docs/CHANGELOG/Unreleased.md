@@ -267,6 +267,11 @@
   theme; picking one applies it at once, is remembered, and is worn by the splash
   window too. On the lighter accents (Aurora, Forest, Ember) the selected row's text
   turns near black so it stays readable.
+- An **update button** (a downward arrow) sits left of Settings in the title bar.
+  It checks for an update at once, with the answer in the card above the status bar,
+  just as the tray's "Check for updates" does. Once an update is downloaded it
+  carries an accent dot, kept even after **Later**, and pressing it offers the
+  restart again.
 - Building now also builds `findex-tag`, a small helper crate in `src-tauri/tag-helper`
   (a Cargo workspace member). `pnpm tauri dev` builds it in debug beside the app;
   `pnpm tauri build` runs `docs/scripts/build-helper.py` (Python), which builds it in
