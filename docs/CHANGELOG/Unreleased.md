@@ -6,6 +6,9 @@
 
 ### Added
 
+- Release builds are signed for the updater: the real public key is embedded, so the
+  first published version can receive later updates without a manual reinstall.
+
 ### Changed
 
 - The app is now named **Findex** in its window, title bar, tray tooltip, installer and
