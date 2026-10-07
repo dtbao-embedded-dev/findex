@@ -45,6 +45,14 @@ keywords: tauri, react, pnpm, MVP, tray, single-instance, updater, sqlite, title
 pnpm, Node 22, Rust toolchain pinned in `rust-toolchain.toml` (keep in step with both
 workflows). Windows-only NSIS bundle; CI on `windows-latest`. Dev server port 1832.
 
+## Naming and icon
+
+The display name is **Findex** (`productName`, window title, title bar, tray tooltip,
+release title). Machine names stay lowercase `findex`: npm package, crate, bundle id
+`com.dtbao.findex`, repository and the `findex.sqlite3` file. Icons are generated from
+`src-tauri/icons/icon.svg` with `pnpm tauri icon`; only the four files the bundle
+lists in `tauri.conf.json` are kept.
+
 ## See also
 
 - [Product scope](product-scope.md)
