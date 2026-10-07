@@ -85,6 +85,16 @@ pub async fn set_active_drive(app: AppHandle, letter: String) -> AppResult<Strin
     .map_err(|err| AppError::Invalid(format!("the drive could not be switched: {err}")))?
 }
 
+/// Saves the drive index changed by live updates. The updater's installer ends the
+/// app with `std::process::exit`, which skips the save `lib.rs` does on quit.
+#[tauri::command]
+pub async fn save_index(index: State<'_, Arc<IndexService>>) -> AppResult<()> {
+    let index = Arc::clone(&index);
+    tauri::async_runtime::spawn_blocking(move || index.save_changed())
+        .await
+        .map_err(|err| AppError::Invalid(format!("saving the index stopped: {err}")))
+}
+
 #[tauri::command]
 pub fn index_status(index: State<'_, Arc<IndexService>>) -> AppResult<Status> {
     Ok(index.status())

@@ -88,6 +88,16 @@
   - **What a tag is:** one word of up to 32 letters, digits, `-` or `_`, stored in
     lower case. Tags are saved in the app's database, keyed by the folder's path, so a
     folder that is renamed or moved loses its tags.
+- Findex updates itself. It checks for a newer signed release 10 seconds after it
+  opens and every six hours, downloads it in the background, then offers "Restart
+  now" or "Later" in a card above the status bar. "Later" keeps the download and
+  offers it again at the next check.
+  - **From the tray:** "Check for updates" checks at once and answers either way:
+    "Findex is up to date", or why the check failed.
+  - **Quiet by default:** a background check that finds nothing, or cannot reach the
+    server (offline, or no release published yet), shows nothing.
+  - **Before installing:** the drive index changed by live updates is saved first,
+    since the installer closes the app without the usual quit.
 
 ### Changed
 

@@ -68,6 +68,7 @@ h1 {
 
 /* The main window: title bar, one screen that fills the rest, status bar. */
 .app {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -723,6 +724,45 @@ kbd {
   }
 }
 
+/* An update ready to install, or a tray check's answer: a card above the status bar
+   that rises into place. */
+.update-banner {
+  position: absolute;
+  right: 1rem;
+  bottom: 2.5rem;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: min(30rem, calc(100% - 2rem));
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.18), var(--shadow);
+  animation: rise 250ms var(--ease) both;
+}
+
+.update-banner > span {
+  flex: 1;
+  padding: 0.25rem 0;
+}
+
+.update-banner.is-error {
+  color: var(--danger);
+}
+
+.update-banner button {
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.update-banner .is-quiet {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 /* The status bar: translucent, one line, a dot that breathes while indexing. */
 .statusbar {
   display: flex;
@@ -853,6 +893,7 @@ kbd {
   .drive-menu,
   .context-menu,
   .tag-editor,
+  .update-banner,
   .toast {
     animation: fade 150ms ease both;
   }
