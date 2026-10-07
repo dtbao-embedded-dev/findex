@@ -216,6 +216,21 @@ describe("paging", () => {
     expect(await page).toBeNull();
   });
 
+  it("asks for no page while a newer search has not answered yet", async () => {
+    const asked: number[] = [];
+    let release: (answer: Answer) => void = () => {};
+    const pager = latestOnly((_query, _filters, offset) => {
+      asked.push(offset);
+      return new Promise<Answer>((r) => (release = r));
+    });
+    const pending = pager.search("new", NO_FILTERS);
+    // The old rows are still on screen; their next page must not mix with "new".
+    expect(await pager.more("new", NO_FILTERS, [hit("C:\\old")])).toBeNull();
+    expect(asked).toEqual([0]);
+    release(found([]));
+    await pending;
+  });
+
   it("drops a page Rust cancelled or failed, keeping the rows loaded", async () => {
     expect(await latestOnly(async () => null).more("x", NO_FILTERS, [])).toBeNull();
     expect(await latestOnly(async () => Promise.reject("busy")).more("x", NO_FILTERS, [])).toBeNull();

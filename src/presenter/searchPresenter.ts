@@ -115,6 +115,8 @@ export function latestOnly(
   stop: () => void;
 } {
   let latest = 0;
+  // The search whose rows are on screen; a page belongs to it only while it is latest.
+  let answered = 0;
   const search = async (
     query: string,
     filters: Filters,
@@ -122,6 +124,7 @@ export function latestOnly(
   ): Promise<SearchUpdate | null> => {
     const mine = ++latest;
     if (!canSearch(query, filters)) {
+      answered = mine;
       return CLEARED;
     }
     const start = now();
@@ -136,6 +139,7 @@ export function latestOnly(
       if (mine !== latest || answer === null) {
         return null;
       }
+      answered = mine;
       return {
         hits: answer.hits,
         selected: 0,
@@ -148,7 +152,11 @@ export function latestOnly(
         scan: null,
       };
     } catch (err) {
-      return mine === latest ? { ...CLEARED, error: String(err) } : null;
+      if (mine !== latest) {
+        return null;
+      }
+      answered = mine;
+      return { ...CLEARED, error: String(err) };
     }
   };
   const more = async (
@@ -157,6 +165,11 @@ export function latestOnly(
     loaded: Hit[],
   ): Promise<PageUpdate | null> => {
     const mine = latest;
+    // A newer search is on its way: the rows on screen are not its, so no page of it
+    // may be added after them.
+    if (answered !== mine) {
+      return null;
+    }
     let answer: Answer | null;
     try {
       answer = await ask(query, filters, loaded.length, PAGE);
