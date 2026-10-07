@@ -35,10 +35,11 @@
   --tag-blue: #007aff;
   --tag-purple: #af52de;
   --tag-gray: #8e8e93;
-  --radius-lg: 1rem;
-  --radius: 0.75rem;
-  --radius-sm: 0.5rem;
-  --radius-xs: 0.375rem;
+  /* One corner radius everywhere (user, 2026-10-07); circles stay circles. */
+  --radius-lg: 5px;
+  --radius: 5px;
+  --radius-sm: 5px;
+  --radius-xs: 5px;
   --row: 2.75rem;
   /* Settles without overshoot: the critically damped default. */
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
@@ -118,7 +119,7 @@ h2 {
   background: var(--fill-strong);
   background-clip: padding-box;
   border: 0.1875rem solid transparent;
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -244,7 +245,7 @@ button:focus-visible {
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
   background: var(--fill);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .titlebar-buttons {
@@ -628,7 +629,7 @@ button:focus-visible {
   margin-top: 0.375rem;
   overflow: hidden;
   background: var(--fill);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .drive-meter > span {
@@ -649,7 +650,7 @@ button:focus-visible {
   letter-spacing: 0.01em;
   white-space: nowrap;
   background: var(--fill);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .drive-badge[data-method="mft"] {
@@ -744,7 +745,7 @@ button:focus-visible {
   font-size: 0.8125rem;
   font-weight: 500;
   background: var(--fill);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .filter-button:hover {
@@ -796,7 +797,7 @@ button:focus-visible {
   font-size: 0.8125rem;
   font-weight: 500;
   background: transparent;
-  border-radius: 0.375rem;
+  border-radius: 5px;
   transition:
     background-color 200ms var(--ease),
     box-shadow 200ms var(--ease);
@@ -1103,7 +1104,7 @@ kbd {
   font: 0.8125rem/1.4 ui-monospace, "Cascadia Code", Consolas, monospace;
   color: var(--fg);
   background: var(--fill);
-  border-radius: 0.3125rem;
+  border-radius: 5px;
 }
 
 /* The right-click menu: solid, compact, growing out of the point it opened at. */
@@ -1161,7 +1162,7 @@ kbd {
   letter-spacing: 0.01em;
   white-space: nowrap;
   background: var(--accent-soft);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .tag-chip.is-small {
@@ -1192,7 +1193,7 @@ kbd {
   font-size: 0.875rem;
   line-height: 1;
   background: transparent;
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .tag-count {
@@ -1260,7 +1261,7 @@ kbd {
   height: 1.75rem;
   padding: 0;
   background: transparent;
-  border-radius: 50%;
+  border-radius: 5px;
 }
 
 .tag-color .tag-dot {
@@ -1352,7 +1353,7 @@ kbd {
   padding: 0;
   color: var(--muted);
   background: var(--fill);
-  border-radius: 50%;
+  border-radius: 5px;
 }
 
 .sheet-close:hover {
@@ -1465,7 +1466,7 @@ kbd {
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   background: var(--raised);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .setting-chip:hover {
@@ -1580,7 +1581,7 @@ kbd {
   background: var(--material);
   backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--hairline);
-  border-radius: 999px;
+  border-radius: 5px;
   box-shadow: var(--shadow);
   transform: translateX(-50%);
   animation: toast-in 250ms var(--ease) both;
