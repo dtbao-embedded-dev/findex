@@ -61,9 +61,13 @@ completeness. Keep the bank's source docs small and cross-linked.
 | `main` | Released code only. Protected — never commit or force-push here. |
 | `developing` | Integration branch. Everything reaches `main` through it. |
 | `feat/*`, `fix/*` | Short-lived work branches, cut from `developing`. |
+| `release/vX.Y` | Stabilises one release, cut from `developing`. Takes `fix/*` merges only, never new features. |
 
 A change lands on a work branch, merges into `developing`, and reaches `main` only
-through a release.
+through a release. A release is cut either from `developing` or from a `release/*`
+branch; from a `release/*` branch it merges into `main` and then back into
+`developing`, so fixes made during stabilisation are never lost and unfinished work
+on `developing` never ships.
 
 ---
 
@@ -156,7 +160,9 @@ Cutting `v0.2.0`, in this order:
      tracked `Cargo.lock` beside a `Cargo.toml`
    - commits exactly those files as `chore(release): v0.2.0`
    - tags the release commit `v0.2.0`
-   - merges the current branch into `developing`, then `developing` into `main`
+   - merges the current branch into `developing`, then `developing` into `main`;
+     from a `release/*` branch it merges that branch into `main`, then into
+     `developing`
 4. **Push, once the user has authorized it.** The script prints the exact commands
    and pushes only with `--push`. Never push without being asked to in that turn.
 

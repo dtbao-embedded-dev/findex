@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, developing]
+    branches: [main, developing, 'release/**']
   pull_request:
-    branches: [main, developing]
+    branches: [main, developing, 'release/**']
 
 # A new push to the same branch makes the previous run pointless.
 concurrency:
