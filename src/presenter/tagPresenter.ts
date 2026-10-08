@@ -2,6 +2,7 @@ import {
   addTag,
   createTag,
   deleteTag,
+  onTagsChanged,
   removeTag,
   tagCatalog,
   type TagInfo,
@@ -51,6 +52,18 @@ export async function loadTags(
   } catch {
     return [];
   }
+}
+
+/**
+ * Reads the catalog again whenever folders were tagged outside the window, from
+ * Explorer's "Tag with Findex" menu. Resolves to the unsubscribe call.
+ */
+export function watchTags(
+  onCatalog: (catalog: TagInfo[]) => void,
+  listen: (onChange: () => void) => Promise<() => void> = onTagsChanged,
+  list: () => Promise<TagInfo[]> = tagCatalog,
+): Promise<() => void> {
+  return listen(() => void loadTags(list).then(onCatalog));
 }
 
 /**

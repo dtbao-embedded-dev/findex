@@ -1,42 +1,49 @@
 /*
  * Design tokens, after Apple's interface guidelines (the apple-design skill):
  * system type with size-specific tracking, translucent materials for chrome (a
- * heavier one for the sidebar, which is structure), instant press feedback,
+ * heavier one for the window chrome, which is structure), instant press feedback,
  * critically damped motion, and the three accessibility preferences (reduced
  * motion, reduced transparency, more contrast).
+ *
+ * Dark only (user, 2026-10-07). Graphite, below, is the default theme; the others
+ * override the surfaces and the accent under `[data-theme]`, set on <html> from
+ * Settings > Appearance, or on a settings swatch to preview one theme inside it
+ * (which is why Graphite is named too: a swatch must not inherit the theme on).
  */
-:root {
-  color-scheme: light dark;
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --raised: #ffffff;
+:root,
+[data-theme="graphite"] {
+  color-scheme: dark;
+  --bg: #1c1c1e;
+  --surface: #1c1c1e;
+  --raised: #2c2c2e;
   /* The chosen segment of a segmented control: lifted above its track. */
-  --segment: #ffffff;
-  --fg: #1d1d1f;
-  --muted: #6e6e73;
-  --tertiary: #aeaeb2;
-  --hairline: rgb(0 0 0 / 0.1);
-  --fill: rgb(118 118 128 / 0.12);
-  --fill-strong: rgb(118 118 128 / 0.2);
-  --accent: #0071e3;
-  --accent-soft: rgb(0 113 227 / 0.12);
+  --segment: #636366;
+  --fg: #f5f5f7;
+  --muted: #98989d;
+  --tertiary: #636366;
+  --hairline: rgb(255 255 255 / 0.12);
+  --fill: rgb(118 118 128 / 0.24);
+  --fill-strong: rgb(118 118 128 / 0.36);
+  --accent: #0a84ff;
+  --accent-soft: rgb(10 132 255 / 0.2);
+  /* Text on an accent fill: white, or near black on a light accent. */
   --on-accent: #ffffff;
-  --danger: #d70015;
-  --success: #248a3d;
-  --folder: #3d8ef7;
-  --material: rgb(246 246 248 / 0.78);
-  --sidebar: rgb(232 232 237 / 0.82);
-  --scrim: rgb(0 0 0 / 0.18);
-  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.08), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.06);
-  --shadow-float: 0 1rem 2.5rem rgb(0 0 0 / 0.18), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.08);
-  /* The colour tags, in Apple's system colours. */
-  --tag-red: #ff3b30;
-  --tag-orange: #ff9500;
-  --tag-yellow: #ffcc00;
-  --tag-green: #34c759;
-  --tag-blue: #007aff;
-  --tag-purple: #af52de;
-  --tag-gray: #8e8e93;
+  --danger: #ff453a;
+  --success: #30d158;
+  --folder: #409cff;
+  --material: rgb(36 36 38 / 0.78);
+  --chrome: rgb(28 28 30 / 0.86);
+  --scrim: rgb(0 0 0 / 0.4);
+  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.4), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.3);
+  --shadow-float: 0 1rem 2.5rem rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+  /* The colour tags, in Apple's dark system colours. */
+  --tag-red: #ff453a;
+  --tag-orange: #ff9f0a;
+  --tag-yellow: #ffd60a;
+  --tag-green: #30d158;
+  --tag-blue: #0a84ff;
+  --tag-purple: #bf5af2;
+  --tag-gray: #98989d;
   /* One corner radius everywhere (user, 2026-10-07); circles stay circles. */
   --radius-lg: 5px;
   --radius: 5px;
@@ -52,40 +59,105 @@
   color: var(--fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1c1c1e;
-    --surface: #1c1c1e;
-    --raised: #2c2c2e;
-    --segment: #636366;
-    --fg: #f5f5f7;
-    --muted: #98989d;
-    --tertiary: #636366;
-    --hairline: rgb(255 255 255 / 0.12);
-    --fill: rgb(118 118 128 / 0.24);
-    --fill-strong: rgb(118 118 128 / 0.36);
-    --accent: #0a84ff;
-    --accent-soft: rgb(10 132 255 / 0.2);
-    --danger: #ff453a;
-    --success: #30d158;
-    --folder: #409cff;
-    --material: rgb(36 36 38 / 0.78);
-    --sidebar: rgb(28 28 30 / 0.86);
-    --scrim: rgb(0 0 0 / 0.4);
-    --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.4), 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.3);
-    --shadow-float: 0 1rem 2.5rem rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
-    --tag-red: #ff453a;
-    --tag-orange: #ff9f0a;
-    --tag-yellow: #ffd60a;
-    --tag-green: #30d158;
-    --tag-blue: #0a84ff;
-    --tag-purple: #bf5af2;
-    --tag-gray: #98989d;
-  }
+/* Midnight: deep navy surfaces, a soft blue accent. */
+[data-theme="midnight"] {
+  --bg: #0f1420;
+  --surface: #0f1420;
+  --raised: #1a2133;
+  --segment: #3a4560;
+  --muted: #8d97ad;
+  --tertiary: #525d75;
+  --hairline: rgb(160 180 255 / 0.12);
+  --fill: rgb(120 140 180 / 0.18);
+  --fill-strong: rgb(120 140 180 / 0.3);
+  --accent: #4c8dff;
+  --accent-soft: rgb(76 141 255 / 0.2);
+  --on-accent: #ffffff;
+  --folder: #6ea8ff;
+  --material: rgb(22 28 44 / 0.8);
+  --chrome: rgb(14 19 31 / 0.86);
 }
 
+/* Aurora: blue-grey surfaces, a teal accent. */
+[data-theme="aurora"] {
+  --bg: #10191b;
+  --surface: #10191b;
+  --raised: #1b2729;
+  --segment: #3d5357;
+  --muted: #8fa3a3;
+  --tertiary: #4f6466;
+  --hairline: rgb(170 255 245 / 0.1);
+  --fill: rgb(120 160 160 / 0.16);
+  --fill-strong: rgb(120 160 160 / 0.28);
+  --accent: #2ec4b6;
+  --accent-soft: rgb(46 196 182 / 0.2);
+  --on-accent: #06201d;
+  --folder: #4fd1c5;
+  --material: rgb(24 36 38 / 0.8);
+  --chrome: rgb(15 24 26 / 0.86);
+}
+
+/* Violet: plum surfaces, a purple accent. */
+[data-theme="violet"] {
+  --bg: #17131f;
+  --surface: #17131f;
+  --raised: #241d31;
+  --segment: #4b3f63;
+  --muted: #a097b0;
+  --tertiary: #5e5470;
+  --hairline: rgb(220 190 255 / 0.1);
+  --fill: rgb(150 130 180 / 0.18);
+  --fill-strong: rgb(150 130 180 / 0.3);
+  --accent: #b05cf0;
+  --accent-soft: rgb(176 92 240 / 0.2);
+  --on-accent: #ffffff;
+  --folder: #c77dff;
+  --material: rgb(34 28 46 / 0.8);
+  --chrome: rgb(22 18 30 / 0.86);
+}
+
+/* Forest: green-black surfaces, a green accent. */
+[data-theme="forest"] {
+  --bg: #121812;
+  --surface: #121812;
+  --raised: #1c251d;
+  --segment: #3f5242;
+  --muted: #93a394;
+  --tertiary: #526253;
+  --hairline: rgb(200 255 200 / 0.09);
+  --fill: rgb(130 160 130 / 0.16);
+  --fill-strong: rgb(130 160 130 / 0.28);
+  --accent: #30d158;
+  --accent-soft: rgb(48 209 88 / 0.18);
+  --on-accent: #06200e;
+  --folder: #5ad27a;
+  --material: rgb(26 35 27 / 0.8);
+  --chrome: rgb(17 23 17 / 0.86);
+}
+
+/* Ember: warm brown-black surfaces, an amber accent. */
+[data-theme="ember"] {
+  --bg: #1a1512;
+  --surface: #1a1512;
+  --raised: #28201b;
+  --segment: #574538;
+  --muted: #a89a8e;
+  --tertiary: #645649;
+  --hairline: rgb(255 220 190 / 0.09);
+  --fill: rgb(170 140 120 / 0.16);
+  --fill-strong: rgb(170 140 120 / 0.28);
+  --accent: #ff9f0a;
+  --accent-soft: rgb(255 159 10 / 0.18);
+  --on-accent: #231400;
+  --folder: #ffb340;
+  --material: rgb(38 31 26 / 0.8);
+  --chrome: rgb(25 20 17 / 0.86);
+}
+
+/* After the themes, so these preferences win over any theme. */
 @media (prefers-contrast: more) {
-  :root {
+  :root,
+  [data-theme] {
     --muted: var(--fg);
     --tertiary: var(--fg);
     --hairline: currentColor;
@@ -93,9 +165,10 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root {
+  :root,
+  [data-theme] {
     --material: var(--raised);
-    --sidebar: var(--raised);
+    --chrome: var(--raised);
   }
 }
 
@@ -215,7 +288,7 @@ button:focus-visible {
   user-select: none;
   color: var(--fg);
   font-size: 0.8125rem;
-  background: var(--sidebar);
+  background: var(--chrome);
   backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--hairline);
 }
@@ -266,6 +339,7 @@ button:focus-visible {
 }
 
 .titlebar-tool {
+  position: relative;
   display: grid;
   place-items: center;
   width: 1.875rem;
@@ -286,14 +360,22 @@ button:focus-visible {
   height: 1.0625rem;
 }
 
-/* A re-scan in progress: the arrow turns, slowly, and the button waits. */
+/* A check in progress: the arrow waits, in the accent colour. */
 .titlebar-tool.is-busy {
   opacity: 1;
+  color: var(--accent);
 }
 
-.titlebar-tool.is-busy svg {
-  color: var(--accent);
-  animation: spin 1.2s linear infinite;
+/* An update downloaded and waiting: a small accent dot on the button's corner. */
+.titlebar-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.3125rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--chrome);
 }
 
 @keyframes spin {
@@ -325,106 +407,22 @@ button:focus-visible {
   background: #c42b1c;
 }
 
-/* The workspace: Finder's sidebar on the left, the search on the right. */
+/* The workspace: the search fills the window under the title bar. */
 .workspace {
-  display: grid;
+  display: flex;
   flex: 1;
-  grid-template-columns: 15rem minmax(0, 1fr);
   min-height: 0;
 }
 
-/* Above the content: its blur makes it a stacking context, and the drive menu it
-   opens must float over the results. */
-.sidebar {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  min-height: 0;
-  padding: 1rem 0.625rem 0.75rem;
-  background: var(--sidebar);
-  backdrop-filter: blur(24px) saturate(180%);
-  border-right: 1px solid var(--hairline);
-}
-
-.sidebar-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-height: 0;
-}
-
-.sidebar-section.is-tags {
+.workspace > .search {
   flex: 1;
 }
 
-.sidebar-heading {
-  margin: 0 0.625rem 0.25rem;
-  color: var(--muted);
-  font-family: var(--font-text);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.sidebar-list {
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.3125rem 0.625rem;
-  color: var(--fg);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  text-align: left;
-  background: transparent;
-  border-radius: var(--radius-xs);
-}
-
-.sidebar-item:hover {
-  background: var(--fill);
-}
-
-.sidebar-item:active {
-  transform: none;
-  background: var(--fill-strong);
-}
-
-.sidebar-item[aria-pressed="true"] {
-  background: var(--fill-strong);
-}
-
-.sidebar-item[aria-pressed="true"] .tag-mark {
-  color: var(--accent);
-}
-
-.sidebar-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.sidebar-count {
+/* A count beside a tag in a menu or list, digits in columns. */
+.item-count {
   color: var(--muted);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
-}
-
-.sidebar-empty {
-  margin: 0 0.625rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.4;
 }
 
 .tag-mark {
@@ -463,64 +461,41 @@ button:focus-visible {
   margin: 0;
 }
 
-/* The drive picker: a sidebar row and the menu it opens. */
+/* The drive picker: a compact button at the left of the search field, as tall as
+   the field, and the menu it opens. */
 .drive-picker {
   position: relative;
+  flex: none;
 }
 
 .drive-button {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  width: 100%;
-  padding: 0.5rem 0.5rem 0.5rem 0.625rem;
+  gap: 0.375rem;
+  height: 2.75rem;
+  padding: 0 0.625rem 0 0.75rem;
   color: var(--fg);
   font-weight: 400;
-  text-align: left;
-  background: transparent;
-  border-radius: var(--radius-sm);
+  background: var(--fill);
+  border-radius: var(--radius);
 }
 
 .drive-button:hover,
 .drive-button[aria-expanded="true"] {
-  background: var(--fill);
-}
-
-.drive-button:active {
-  transform: none;
   background: var(--fill-strong);
 }
 
 .drive-button .drive-glyph {
   flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
   color: var(--accent);
 }
 
-.drive-button-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.3;
-}
-
-.drive-button-label,
-.drive-button-detail {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 .drive-button-label {
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-}
-
-.drive-button-detail {
-  color: var(--muted);
-  font-size: 0.6875rem;
+  letter-spacing: -0.005em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -536,8 +511,8 @@ button:focus-visible {
   transform: rotate(180deg);
 }
 
-/* Solid, not translucent: it floats over the translucent sidebar, and stacked
-   materials lose legibility. It grows out of the row that opened it. */
+/* Solid, not translucent: it floats over the results, and stacked materials lose
+   legibility. It grows out of the button that opened it. */
 .drive-menu {
   position: absolute;
   top: calc(100% + 0.375rem);
@@ -699,10 +674,157 @@ button:focus-visible {
   padding: 1rem 1.25rem 0.5rem;
 }
 
+/* Drive, field and re-scan on one line: the field takes what the two leave. */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .search-field {
   position: relative;
   display: flex;
+  flex: 1;
   align-items: center;
+  min-width: 0;
+}
+
+/* Recent searches: a solid card that grows out of the field, like the drive menu. */
+.history-menu {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  left: 0;
+  z-index: 10;
+  padding: 0.375rem;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+  transform-origin: top center;
+  animation: pop-in 200ms var(--ease) both;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem 0.375rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.history-clear {
+  padding: 0.125rem 0.375rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: transparent;
+}
+
+.history-clear:hover {
+  background: var(--accent-soft);
+}
+
+.history-list {
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 2.125rem;
+  padding: 0 0.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.history-item.is-active {
+  background: var(--accent-soft);
+}
+
+.history-glyph {
+  flex: none;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--muted);
+}
+
+.history-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The remove button shows on the row it belongs to, so the list stays calm. */
+.history-forget {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  opacity: 0;
+}
+
+.history-item.is-active .history-forget,
+.history-forget:focus-visible {
+  opacity: 1;
+}
+
+.history-forget:hover {
+  color: var(--fg);
+  background: var(--fill-strong);
+}
+
+.history-forget svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* A square tool the height of the field, quiet until hovered. */
+.search-tool {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  color: var(--muted);
+  background: var(--fill);
+  border-radius: var(--radius);
+}
+
+.search-tool:hover {
+  color: var(--fg);
+  background: var(--fill-strong);
+}
+
+.search-tool svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* A re-scan in progress: the arrow turns, slowly, and the button waits. */
+.search-tool.is-busy {
+  opacity: 1;
+}
+
+.search-tool.is-busy svg {
+  color: var(--accent);
+  animation: spin 1.2s linear infinite;
 }
 
 .search-glyph {
@@ -1063,7 +1185,7 @@ button:focus-visible {
 
 .is-selected .result-path,
 .is-selected .result-meta {
-  color: rgb(255 255 255 / 0.82);
+  color: color-mix(in srgb, var(--on-accent) 82%, transparent);
 }
 
 /* A file found by its contents: the line number, then the line with the words in
@@ -1075,7 +1197,7 @@ button:focus-visible {
 }
 
 .is-selected .result-path.is-snippet mark {
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .result-line-no {
@@ -1196,7 +1318,7 @@ kbd {
 
 .is-selected .tag-chip.is-small {
   color: var(--on-accent);
-  background: rgb(255 255 255 / 0.22);
+  background: color-mix(in srgb, var(--on-accent) 22%, transparent);
 }
 
 .tag-chip.is-suggestion {
@@ -1461,6 +1583,129 @@ button.tag-color:active {
   font-weight: 500;
 }
 
+/* Theme swatches: a miniature window in each theme's own colours, its accent as a
+   dot; the chosen one is ringed in the current accent. */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.375rem;
+  padding: 0;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: transparent;
+}
+
+.theme-swatch {
+  position: relative;
+  display: block;
+  height: 3.5rem;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  transition: box-shadow 200ms var(--ease);
+}
+
+.theme-swatch-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0.75rem;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.theme-swatch-row {
+  position: absolute;
+  top: 1.375rem;
+  right: 0.625rem;
+  left: 0.625rem;
+  height: 0.875rem;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.theme-swatch-dot {
+  position: absolute;
+  right: 0.625rem;
+  bottom: 0.4375rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--folder);
+  border-radius: 50%;
+}
+
+.theme-option[aria-checked="true"] .theme-swatch {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent);
+}
+
+.theme-option:hover .theme-swatch {
+  border-color: var(--tertiary);
+}
+
+.theme-name {
+  text-align: center;
+}
+
+.theme-option[aria-checked="true"] .theme-name {
+  color: var(--accent);
+}
+
+/* An on/off switch, as in System Settings: the knob slides, the track fills with
+   the accent colour. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 2.375rem;
+  height: 1.375rem;
+  margin: 0;
+  appearance: none;
+  background: var(--fill-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 200ms var(--ease);
+}
+
+.switch::after {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  content: "";
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0.0625rem 0.1875rem rgb(0 0 0 / 0.3);
+  transition: transform 200ms var(--ease);
+}
+
+.switch:checked {
+  background: var(--accent);
+}
+
+.switch:checked::after {
+  transform: translateX(1rem);
+}
+
+.switch:focus-visible {
+  outline: 0.1875rem solid var(--accent-soft);
+  outline-offset: 0.125rem;
+}
+
+.switch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .setting-add {
   display: flex;
   gap: 0.5rem;
@@ -1547,6 +1792,43 @@ button.tag-color:active {
 }
 
 /* A short confirmation over the status bar; errors stay a little longer. */
+/* Back to the top: a round, translucent button floating over the lower right of the
+   results once they are scrolled down; it rises into place rather than popping. */
+.back-to-top {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 1.25rem;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  color: var(--fg);
+  background: var(--material);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  animation: rise-in 220ms var(--ease) both;
+}
+
+.back-to-top:hover {
+  color: var(--accent);
+}
+
+.back-to-top svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.96);
+  }
+}
+
 .toast {
   position: absolute;
   bottom: 0.875rem;
@@ -1628,7 +1910,7 @@ button.tag-color:active {
   font-size: 0.75rem;
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
-  background: var(--sidebar);
+  background: var(--chrome);
   backdrop-filter: blur(24px) saturate(180%);
   border-top: 1px solid var(--hairline);
 }
@@ -1651,6 +1933,20 @@ button.tag-color:active {
   white-space: nowrap;
   text-overflow: ellipsis;
   max-width: 50%;
+}
+
+/* The copyright closes the line: right-aligned, after any note, a step quieter. */
+.status-copyright {
+  flex: none;
+  margin-left: auto;
+  color: var(--tertiary);
+  white-space: nowrap;
+}
+
+.status-note + .status-copyright {
+  margin-left: 0;
+  padding-left: 0.625rem;
+  border-left: 1px solid var(--hairline);
 }
 
 @keyframes breathe {
@@ -1752,11 +2048,13 @@ button.tag-color:active {
   }
 
   .status-dot.is-busy,
-  .titlebar-tool.is-busy svg {
+  .search-tool.is-busy svg {
     animation: none;
   }
 
   .drive-menu,
+  .history-menu,
+  .back-to-top,
   .filter-panel,
   .sheet,
   .context-menu,

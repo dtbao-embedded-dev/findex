@@ -1,9 +1,10 @@
 import { copyText } from "../model/clipboard";
-import { openClaude, openFolder, openTerminal } from "../model/launch";
+import { openClaude, openFolder, openTerminal, openVsCode } from "../model/launch";
 import { revealPath, type Hit } from "../model/search";
 
 export type MenuAction =
   | "claude"
+  | "vscode"
   | "folder"
   | "terminal"
   | "reveal"
@@ -19,6 +20,7 @@ export type ActionDeps = {
   openClaude: (path: string) => Promise<void>;
   openFolder: (path: string) => Promise<void>;
   openTerminal: (path: string) => Promise<void>;
+  openVsCode: (path: string) => Promise<void>;
   reveal: (path: string) => Promise<void>;
   copy: (text: string) => Promise<void>;
 };
@@ -27,19 +29,25 @@ const MODEL: ActionDeps = {
   openClaude,
   openFolder,
   openTerminal,
+  openVsCode,
   reveal: revealPath,
   copy: copyText,
 };
 
-/** What a right-click on a result offers: opening it, copying, then a folder's tags. */
+/**
+ * What a right-click on a result offers: opening it (VS Code opens files and
+ * folders alike), copying, then a folder's tags.
+ */
 export function menuFor(hit: Hit): MenuItem[] {
+  const vscode: MenuItem = { action: "vscode", label: "Open with VS Code", group: 0 };
   const open: MenuItem[] = hit.isDir
     ? [
         { action: "claude", label: "Open with Claude", group: 0 },
+        vscode,
         { action: "folder", label: "Open folder", group: 0 },
         { action: "terminal", label: "Open in Terminal", group: 0 },
       ]
-    : [{ action: "reveal", label: "Show in Explorer", group: 0 }];
+    : [vscode, { action: "reveal", label: "Show in Explorer", group: 0 }];
   return [
     ...open,
     { action: "copyPath", label: "Copy path", group: 1 },
@@ -62,6 +70,9 @@ export async function runAction(
     switch (action) {
       case "claude":
         await deps.openClaude(hit.path);
+        return { notice: null, error: null };
+      case "vscode":
+        await deps.openVsCode(hit.path);
         return { notice: null, error: null };
       case "folder":
         await deps.openFolder(hit.path);

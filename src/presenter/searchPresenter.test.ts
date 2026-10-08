@@ -10,6 +10,7 @@ import {
   highlight,
   keepSelection,
   latestDetails,
+  latestSizes,
   latestOnly,
   moveSelection,
   PAGE,
@@ -324,22 +325,30 @@ describe("describeHit", () => {
   });
 
   it("words a file's type and size, then its date", () => {
-    expect(describeHit(details({}), date)).toEqual({
+    expect(describeHit(details({}), undefined, date)).toEqual({
       kind: "PDF Document · 2.4 MB",
       modified: "2026-10-05",
     });
   });
 
   it("gives a folder no size", () => {
-    expect(describeHit(details({ kind: "File folder", size: null }), date)).toEqual({
+    expect(describeHit(details({ kind: "File folder", size: null }), undefined, date)).toEqual({
       kind: "File folder",
       modified: "2026-10-05",
     });
   });
 
+  it("adds a folder's size once measured, and says so while it is", () => {
+    const folder = details({ kind: "File folder", size: null });
+    expect(describeHit(folder, 3 * 1024 ** 3, date)?.kind).toBe("File folder · 3.0 GB");
+    expect(describeHit(folder, "pending", date)?.kind).toBe("File folder · Calculating…");
+    // Unreadable: no size, rather than a guess.
+    expect(describeHit(folder, null, date)?.kind).toBe("File folder");
+  });
+
   it("shows nothing until the details arrive, and no date when there is none", () => {
-    expect(describeHit(undefined, date)).toBeNull();
-    expect(describeHit(details({ modified: null }), date)?.modified).toBe("");
+    expect(describeHit(undefined, undefined, date)).toBeNull();
+    expect(describeHit(details({ modified: null }), undefined, date)?.modified).toBe("");
   });
 });
 
@@ -374,5 +383,36 @@ describe("latestDetails", () => {
     });
     expect(await load([])).toEqual({});
     expect(calls).toBe(0);
+  });
+});
+
+describe("latestSizes", () => {
+  it("passes on sizes for the latest request only, and says whether it ran to its end", async () => {
+    const sends: ((size: { path: string; bytes: number }) => void)[] = [];
+    const ends: (() => void)[] = [];
+    const load = latestSizes(
+      (_paths, onSize) =>
+        new Promise<void>((resolve) => {
+          sends.push(onSize);
+          ends.push(resolve);
+        }),
+    );
+    const got: string[] = [];
+    const first = load(["C:\a"], (path, bytes) => got.push(`${path}=${bytes}`));
+    const second = load(["C:\b"], (path, bytes) => got.push(`${path}=${bytes}`));
+    sends[0]?.({ path: "C:\a", bytes: 1 });
+    sends[1]?.({ path: "C:\b", bytes: 2 });
+    ends[0]?.();
+    ends[1]?.();
+    expect(await first).toBe(false);
+    expect(await second).toBe(true);
+    expect(got).toEqual(["C:\b=2"]);
+  });
+
+  it("treats a failed request as one that ended", async () => {
+    const load = latestSizes(async () => {
+      throw "gone";
+    });
+    expect(await load(["x"], () => {})).toBe(true);
   });
 });

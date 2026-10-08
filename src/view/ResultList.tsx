@@ -2,7 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 
 import type { Details } from "../model/details";
 import type { Hit } from "../model/search";
-import { detailsWindow, scrollToShow, visibleRange, type Rows } from "../presenter/listPresenter";
+import {
+  detailsWindow,
+  scrollToShow,
+  showsBackToTop,
+  visibleRange,
+  type Rows,
+} from "../presenter/listPresenter";
 import { describeHit, folderOf, highlight } from "../presenter/searchPresenter";
 import { tagLabel } from "../presenter/tagPresenter";
 
@@ -11,6 +17,8 @@ type Props = {
   selected: number;
   query: string;
   details: Record<string, Details>;
+  /** Folder sizes measured so far: bytes, or null when a folder cannot be read. */
+  sizes: Record<string, number | null>;
   /** The line above the rows, such as "Top 200 results · 12 ms"; null while searching. */
   meta: string | null;
   /** The rendered rows by index, for placing the menu at the selected one. */
@@ -39,6 +47,7 @@ export function ResultList({
   selected,
   query,
   details,
+  sizes,
   meta,
   rows,
   onSelect,
@@ -107,93 +116,128 @@ export function ResultList({
     onDetailsWindow(wanted);
   }, [wanted.first, wanted.last, onDetailsWindow]);
 
+  const backToTop = () => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scroller.current?.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  };
+
   return (
-    <div
-      ref={scroller}
-      className="results-scroll"
-      onScroll={(event) =>
-        setView({ scrollTop: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })
-      }
-    >
-      {meta !== null && (
-        <p
-          className="results-meta"
-          title="Results found, the time the search took, and the memory the drive's name index holds"
-        >
-          {meta}
-        </p>
-      )}
-      <ul
-        ref={list}
-        id="results"
-        className="results"
-        role="listbox"
-        aria-label="Results"
-        style={{ height: hits.length * rowHeight }}
+    <>
+      <div
+        ref={scroller}
+        className="results-scroll"
+        onScroll={(event) =>
+          setView({
+            scrollTop: event.currentTarget.scrollTop,
+            height: event.currentTarget.clientHeight,
+          })
+        }
       >
-        {hits.slice(range.first, range.last).map((hit, offset) => {
-          const index = range.first + offset;
-          return (
-            <li
-              key={hit.path}
-              ref={(el) => {
-                rows.current[index] = el;
-              }}
-              role="option"
-              aria-selected={index === selected}
-              aria-setsize={hits.length}
-              aria-posinset={index + 1}
-              className={index === selected ? "result is-selected" : "result"}
-              style={{ top: index * rowHeight }}
-              onMouseDown={() => onSelect(index)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                onMenu({ x: event.clientX, y: event.clientY }, index);
-              }}
-            >
-              <KindGlyph folder={hit.isDir} />
-              <span className="result-text">
-                <span className="result-line">
-                  <span className="result-name">
-                    {highlight(hit.name, query).map((part, i) =>
-                      part.match ? <mark key={i}>{part.text}</mark> : part.text,
-                    )}
-                  </span>
-                  {details[hit.path]?.tags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      className="tag-chip is-small"
-                      tabIndex={-1}
-                      title={`Filter by the tag ${tagLabel(tag, tagColors)}`}
-                      onClick={() => onTag(tag)}
-                    >
-                      {tag in tagColors && (
-                        <span className="tag-dot" data-color={tagColors[tag]} aria-hidden="true" />
+        {meta !== null && (
+          <p
+            className="results-meta"
+            title="Results found, the time the search took, and the memory the drive's name index holds"
+          >
+            {meta}
+          </p>
+        )}
+        <ul
+          ref={list}
+          id="results"
+          className="results"
+          role="listbox"
+          aria-label="Results"
+          style={{ height: hits.length * rowHeight }}
+        >
+          {hits.slice(range.first, range.last).map((hit, offset) => {
+            const index = range.first + offset;
+            return (
+              <li
+                key={hit.path}
+                ref={(el) => {
+                  rows.current[index] = el;
+                }}
+                role="option"
+                aria-selected={index === selected}
+                aria-setsize={hits.length}
+                aria-posinset={index + 1}
+                className={index === selected ? "result is-selected" : "result"}
+                style={{ top: index * rowHeight }}
+                onMouseDown={() => onSelect(index)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  onMenu({ x: event.clientX, y: event.clientY }, index);
+                }}
+              >
+                <KindGlyph folder={hit.isDir} />
+                <span className="result-text">
+                  <span className="result-line">
+                    <span className="result-name">
+                      {highlight(hit.name, query).map((part, i) =>
+                        part.match ? <mark key={i}>{part.text}</mark> : part.text,
                       )}
-                      {tagLabel(tag, tagColors)}
-                    </button>
-                  ))}
-                </span>
-                {hit.line === undefined ? (
-                  <span className="result-path">{folderOf(hit.path)}</span>
-                ) : (
-                  <span className="result-path is-snippet" title={folderOf(hit.path)}>
-                    <span className="result-line-no" aria-label={`Line ${hit.line}`}>
-                      {hit.line}
                     </span>
-                    {highlight(hit.snippet ?? "", query).map((part, i) =>
-                      part.match ? <mark key={i}>{part.text}</mark> : part.text,
-                    )}
+                    {details[hit.path]?.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className="tag-chip is-small"
+                        tabIndex={-1}
+                        title={`Filter by the tag ${tagLabel(tag, tagColors)}`}
+                        onClick={() => onTag(tag)}
+                      >
+                        {tag in tagColors && (
+                          <span className="tag-dot" data-color={tagColors[tag]} aria-hidden="true" />
+                        )}
+                        {tagLabel(tag, tagColors)}
+                      </button>
+                    ))}
                   </span>
-                )}
-              </span>
-              <HitMeta meta={describeHit(details[hit.path])} />
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+                  {hit.line === undefined ? (
+                    <span className="result-path">{folderOf(hit.path)}</span>
+                  ) : (
+                    <span className="result-path is-snippet" title={folderOf(hit.path)}>
+                      <span className="result-line-no" aria-label={`Line ${hit.line}`}>
+                        {hit.line}
+                      </span>
+                      {highlight(hit.snippet ?? "", query).map((part, i) =>
+                        part.match ? <mark key={i}>{part.text}</mark> : part.text,
+                      )}
+                    </span>
+                  )}
+                </span>
+                <HitMeta
+                  meta={describeHit(
+                    details[hit.path],
+                    hit.isDir ? (hit.path in sizes ? sizes[hit.path] : "pending") : undefined,
+                  )}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      {showsBackToTop(view.scrollTop, view.height) && (
+        <button
+          type="button"
+          className="back-to-top"
+          aria-label="Back to the top"
+          title="Back to the top"
+          onClick={backToTop}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M8 13V3.5M3.75 7.5L8 3.25l4.25 4.25"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )}
+    </>
   );
 }
 

@@ -191,6 +191,36 @@
     not text, so their contents are not found.
   - **Rights:** a release build runs as administrator, so it can read, and list
     lines from, files your own account cannot open.
+- **Tag with Findex** in Explorer's right-click menu, on a folder and on the empty
+  space of an open folder: a submenu with one entry per tag (presets first, up to 16)
+  tags that folder while Findex stays in the tray. On Windows 11 it is under "Show
+  more options".
+  - **How:** each entry runs `findex-tag.exe`, a small helper installed beside Findex
+    that runs with your normal rights (Findex itself runs as administrator), and leaves
+    a request in Findex's `inbox` folder. Findex applies it within a second and the
+    tag shows on the result at once; if Findex is not running, at its next start.
+  - **Settings → Explorer** turns the menu on or off (on by default) and says why if
+    it cannot be set up. The menu follows the tags: a new or deleted tag shows there
+    the next time it is opened. Uninstalling Findex removes the menu.
+- Folder results show their size beside their type ("File folder · 2.4 GB"). It is
+  measured in the background for the folders on screen, reads "Calculating…" until
+  known, and is remembered for five minutes. Junctions and links are not followed and
+  unreadable subfolders count as empty; a folder that cannot be read shows no size.
+  Measuring uses four threads of its own, so a large folder never slows the search,
+  and scrolling past a folder stops measuring it.
+- **Open with VS Code** in the right-click menu of both folders and files. A folder
+  opens as its own VS Code window, a file in VS Code's current window. Code is found
+  beside the `code` command on PATH, else in the default per-user or machine-wide
+  install, and starts with your normal rights, like the terminal.
+- **Recent searches** drop down from the search field when it is empty and has
+  focus. Pick one with a click, or with ↑/↓ and Enter; Esc puts the list away, the ×
+  on a row forgets that search, and **Clear** forgets them all. A search is remembered
+  once it has stayed on screen with results for 1.5 s, or when a result's menu was
+  used; typing on from the newest entry ("rea", then "readme") replaces it rather
+  than adding both. The last 20 are kept across restarts.
+- A round **back to the top** button floats over the lower right of the results once
+  they are scrolled past one screen; it scrolls smoothly back up (instantly with
+  reduced motion) and then hides.
 
 ### Changed
 
@@ -226,6 +256,30 @@
 - The status bar explains a folder scan in plain words. When rights are missing it
   says "open Findex as administrator for instant search and live updates" instead of
   "Access is denied (os error 5)".
+- The sidebar is gone; the search now fills the window. The drive picker is a
+  compact button (drive glyph and letter, e.g. `E:`) at the left of the search field,
+  with the drive's name and free space on hover, and the re-scan button moved from the
+  title bar to the right of the field. Tags are still filtered from the **Tags** menu
+  in the filter bar and from the tag chips on results.
+- Findex is now **dark only**, whatever Windows' light or dark setting, and
+  **Settings → Appearance** offers six themes: Graphite (the dark look so far, and
+  the default), Midnight, Aurora, Violet, Forest and Ember. Each swatch previews its
+  theme; picking one applies it at once, is remembered, and is worn by the splash
+  window too. On the lighter accents (Aurora, Forest, Ember) the selected row's text
+  turns near black so it stays readable.
+- An **update button** (a downward arrow) sits left of Settings in the title bar.
+  It checks for an update at once, with the answer in the card above the status bar,
+  just as the tray's "Check for updates" does. Once an update is downloaded it
+  carries an accent dot, kept even after **Later**, and pressing it offers the
+  restart again.
+- The status bar ends with the copyright (`© 2026 dtbao`), read from
+  `bundle.copyright` like the splash window's, so it changes in one place.
+- Building now also builds `findex-tag`, a small helper crate in `src-tauri/tag-helper`
+  (a Cargo workspace member). `pnpm tauri dev` builds it in debug beside the app;
+  `pnpm tauri build` runs `docs/scripts/build-helper.py` (Python), which builds it in
+  release and places it where the release bundle (`bundle.externalBin` in
+  `tauri.release.conf.json`) picks it up. CI now formats, lints and tests the whole
+  workspace.
 
 ### Fixed
 

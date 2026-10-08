@@ -9,12 +9,12 @@ describe("loadTitle", () => {
       version: "0.1.0",
       copyright: "© 2026 dtbao",
     }));
-    expect(title).toEqual({ name: "Findex", version: "v0.1.0" });
+    expect(title).toEqual({ name: "Findex", version: "v0.1.0", copyright: "© 2026 dtbao" });
   });
 
   it("shows no version when the model has none", async () => {
     const title = await loadTitle(async () => ({ name: "Findex", version: "", copyright: "" }));
-    expect(title).toEqual({ name: "Findex", version: "" });
+    expect(title).toEqual({ name: "Findex", version: "", copyright: "" });
   });
 
   it("falls back to the name alone when the model fails", async () => {
@@ -22,6 +22,6 @@ describe("loadTitle", () => {
       throw "no ipc";
     });
     expect(title).toEqual(initialTitle);
-    expect(initialTitle).toEqual({ name: "Findex", version: "" });
+    expect(initialTitle).toEqual({ name: "Findex", version: "", copyright: "" });
   });
 });

@@ -12,6 +12,15 @@ updated: 2026-10-07
 
 ## What works
 
+- **Toolbar, themes, quick tag (branch `feat/toolbar-themes-quick-tag`,
+  8c10406..0197f51, 2026-10-07):** see [search extras](behavior/search-extras.md) and
+  [Explorer quick tag](behavior/explorer-quick-tag.md). Checked over CDP on a debug
+  build (unelevated); the registered Explorer commands were run as Explorer would; a
+  release NSIS installer was built with `findex-tag.exe` and the uninstall hook
+  (updater signing not exercised). Gates: vitest 162, cargo test 142 + 4 helper,
+  clippy/fmt `--workspace`, typecheck, build. Not yet: a human right-click in Explorer,
+  install/uninstall, an elevated run.
+
 - **Content search, no cap, type filter, named tags (branch
   `feat/content-search-paging`, 8992a8c..bbf3c93, 2026-10-07):** Enter and
   double-click open nothing; presets Working, Doc, Important, Todo, Review, Personal,

@@ -62,6 +62,11 @@ export function activeTitle(drives: Drive[], active: string | null): string {
   return drive ? describeDrive(drive).title : `${active}:`;
 }
 
+/** The compact picker beside the search field names the drive by its letter. */
+export function driveLetterLabel(active: string | null): string {
+  return active === null ? "Drive" : `${active}:`;
+}
+
 export function searchPlaceholder(active: string | null, mode: "name" | "contents" = "name"): string {
   if (mode === "contents") {
     return active === null ? "Search names and contents" : `Search names and contents on ${active}:`;

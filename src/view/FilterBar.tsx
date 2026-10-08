@@ -130,7 +130,7 @@ export function FilterBar({ filters, tags, onChange }: Props) {
                 <span className="filter-check" aria-hidden="true" />
                 <TagMark tag={t.tag} colors={colors} />
                 <span className="filter-option-label">{tagName(t.tag, colors)}</span>
-                {t.folders > 0 && <span className="sidebar-count">{t.folders}</span>}
+                {t.folders > 0 && <span className="item-count">{t.folders}</span>}
               </button>
             ))}
           </div>

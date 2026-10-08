@@ -11,13 +11,20 @@ updated: 2026-10-07
 
 ## Current focus
 
-Branch `feat/content-search-paging` (from `developing` 39d47cb) is complete and
-verified unelevated: Enter/double-click open nothing, named preset tags, Type filter,
-uncapped paged name results, streamed Contents search. Merge into `developing` and
-any push are waiting for the user. (`feat/ui-redesign-filters` was merged into
-`developing` earlier.)
+Branch `feat/toolbar-themes-quick-tag` (from `developing` bc4864d, 8c10406..0197f51)
+is complete and verified unelevated: search row (drive left, re-scan right, no
+sidebar), Explorer "Tag with Findex" via the `findex-tag` helper and inbox, folder
+sizes, Open with VS Code, recent searches, back-to-top, dark-only with six themes,
+update button, footer copyright. Open: a real Explorer right-click check by the user;
+merge into `developing` and any push wait for the user. (`feat/content-search-paging`
+was merged into `developing` earlier, bc4864d.)
 
 ## Recent changes
+
+- **2026-10-07, fifth run (`feat/toolbar-themes-quick-tag`):** 8c10406 search row;
+  c2a9ef7 helper crate; ee16579 inbox; 6683abb drive-root fix; 83ce1da Explorer menu;
+  76f3831 folder sizes; 443e803 VS Code; 4c4fa9e history; 0bcf7d2 back-to-top;
+  0bba777 themes; 1672278 update button; 0197f51 copyright.
 
 - **2026-10-07, fourth run (`feat/content-search-paging`):** 8992a8c Enter/dblclick;
   6de5172 named presets (migration 4); f1cf5bb Type filter; d30ce23 paging, no cap,
@@ -46,8 +53,13 @@ any push are waiting for the user. (`feat/ui-redesign-filters` was merged into
 
 ## Active decisions
 
-- **Layout:** Finder sidebar; "New tag" lives in Settings, not the sidebar (user,
-  2026-10-07).
+- **Layout:** no sidebar; drive picker left of the search field, re-scan right of it;
+  "New tag" lives in Settings (user, 2026-10-07; replaced the Finder sidebar).
+- **Appearance:** dark only; themes Graphite (default), Midnight, Aurora, Violet,
+  Forest, Ember (user, 2026-10-07).
+- **Quick tag outside the app:** Explorer right-click via a separate unelevated helper
+  crate; the admin manifest stays. See [ADR-0003](adr/adr-0003-explorer-tag-helper.md).
+- **Folder size:** measured automatically for visible rows (user, 2026-10-07).
 - **Date filter:** dates are read from the disk for the best name matches; the index
   stays names-only (user, 2026-10-07).
 - **Preset tags:** named, each with a colour: Working, Doc, Important, Todo, Review,

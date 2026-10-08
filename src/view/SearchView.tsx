@@ -11,11 +11,19 @@ import {
   keepSelection,
   latestDetails,
   latestOnly,
+  latestSizes,
   moveSelection,
   PAGE,
   resultsView,
 } from "../presenter/searchPresenter";
 import { describeScan, latestScan } from "../presenter/contentPresenter";
+import {
+  forget,
+  loadHistory,
+  remember,
+  REMEMBER_AFTER_MS,
+  saveHistory,
+} from "../presenter/historyPresenter";
 import { searchPlaceholder } from "../presenter/drivePresenter";
 import { menuFor, runAction, type MenuAction } from "../presenter/menuPresenter";
 import {
@@ -29,9 +37,10 @@ import {
 } from "../presenter/filterPresenter";
 import { keepKnown, tagColors } from "../presenter/tagPresenter";
 import { ContextMenu } from "./ContextMenu";
+import { DrivePicker } from "./DrivePicker";
 import { FilterBar } from "./FilterBar";
+import { HistoryMenu } from "./HistoryMenu";
 import { ResultList } from "./ResultList";
-import { Sidebar } from "./Sidebar";
 import { TagEditor } from "./TagEditor";
 import { Toast } from "./Toast";
 
@@ -57,6 +66,12 @@ type Props = {
   tags: TagInfo[];
   /** Asks for the tags again after a folder's tags changed. */
   onTagsChanged: () => void;
+  /** Indexes the active drive again. */
+  onRescan: () => void;
+  /** What the re-scan button says on hover. */
+  rescanLabel: string;
+  /** True while a drive is being indexed: the re-scan button waits and turns. */
+  busy: boolean;
 };
 
 /**
@@ -64,7 +79,16 @@ type Props = {
  * selection and Esc clears. Enter and a double click open nothing: every action on a
  * result goes through its menu (right-click, the menu key or Shift+F10).
  */
-export function SearchView({ total, active, onActiveChange, tags, onTagsChanged }: Props) {
+export function SearchView({
+  total,
+  active,
+  onActiveChange,
+  tags,
+  onTagsChanged,
+  onRescan,
+  rescanLabel,
+  busy,
+}: Props) {
   const [state, setState] = useState(initialSearch);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const search = useMemo(() => latestOnly(), []);
@@ -73,6 +97,15 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
   const loadingMore = useRef(false);
   const loadDetails = useMemo(() => latestDetails(), []);
   const [details, setDetails] = useState<Record<string, Details>>({});
+  const loadSizes = useMemo(() => latestSizes(), []);
+  // Folder sizes measured for this query: bytes, or null for a folder that cannot
+  // be read. Read through a ref by the effect that asks, so an answer arriving does
+  // not ask again (and stop the walks still running).
+  const [sizes, setSizes] = useState<Record<string, number | null>>({});
+  const sizesNow = useRef(sizes);
+  // The query the sizes were measured for: a new one measures its folders afresh
+  // (Rust still remembers recent sizes), once its own rows are on screen.
+  const sizesFor = useRef(state.query);
   // The rows in view, whose details are read; the rest are read as they scroll in.
   const [shown, setShown] = useState<Rows>({ first: 0, last: 0 });
   const detailsFor = useRef(state.hits);
@@ -87,6 +120,43 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
   const [editing, setEditing] = useState<Editing | null>(null);
   // Set when the keyboard opened the menu, so the field's own menu stays shut.
   const menuByKey = useRef(false);
+  // Recent searches, offered from the empty field while it has focus; Esc puts
+  // them away until the field is left or typed in.
+  const [history, setHistory] = useState<string[]>([]);
+  const historyNow = useRef(history);
+  const [historyActive, setHistoryActive] = useState(-1);
+  const [focused, setFocused] = useState(false);
+  const [historyShut, setHistoryShut] = useState(false);
+  const historyOpen = focused && !historyShut && state.query === "" && history.length > 0;
+
+  const keepHistory = (next: string[]) => {
+    if (next !== historyNow.current) {
+      historyNow.current = next;
+      setHistory(next);
+      void saveHistory(next);
+    }
+  };
+
+  useEffect(() => {
+    void loadHistory().then((saved) => {
+      historyNow.current = saved;
+      setHistory(saved);
+    });
+    setFocused(document.activeElement === field.current);
+  }, []);
+
+  // A query that stays on screen with results is remembered; so is one a result was
+  // acted on from (see `pick`).
+  useEffect(() => {
+    if (state.query.trim() === "" || state.hits.length === 0) {
+      return;
+    }
+    const timer = setTimeout(
+      () => keepHistory(remember(historyNow.current, state.query)),
+      REMEMBER_AFTER_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [state.query, state.hits.length > 0]);
 
   const show = (text: string, tone: Notice["tone"]) =>
     setNotice((n) => ({ text, tone, id: (n?.id ?? 0) + 1 }));
@@ -148,6 +218,34 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
     });
     // The tags change too: a deleted tag must leave the rows that showed it.
   }, [state.hits, shown, loadDetails, tags]);
+
+  useEffect(() => {
+    sizesNow.current = sizes;
+  }, [sizes]);
+
+  // The folders on screen are measured in the background; scrolling stops the walks
+  // for rows that left and starts those for rows that came in.
+  useEffect(() => {
+    if (sizesFor.current !== state.query) {
+      sizesFor.current = state.query;
+      sizesNow.current = {};
+      setSizes({});
+    }
+    const asked = state.hits
+      .slice(shown.first, shown.last)
+      .filter((hit) => hit.isDir && !(hit.path in sizesNow.current))
+      .map((hit) => hit.path);
+    void loadSizes(asked, (path, bytes) => setSizes((s) => ({ ...s, [path]: bytes }))).then(
+      (ended) => {
+        if (ended && asked.length > 0) {
+          setSizes((s) => ({
+            ...Object.fromEntries(asked.map((path) => [path, null])),
+            ...s,
+          }));
+        }
+      },
+    );
+  }, [state.hits, shown, loadSizes]);
 
   // Dates such as "Today" are measured when each search is asked, not when picked.
   const run = (query: string, by: FilterState = filters) => {
@@ -240,6 +338,7 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
   const pick = (action: MenuAction) => {
     const hit = menu?.hit;
     closeMenu();
+    keepHistory(remember(historyNow.current, state.query));
     if (hit && menu && action === "tags") {
       setEditing({ at: menu.at, folder: hit, tags: details[hit.path]?.tags ?? [] });
     } else if (hit) {
@@ -253,7 +352,33 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
     }
   };
 
+  const pickHistory = (entry: string) => {
+    setHistoryActive(-1);
+    run(entry);
+  };
+
+  // While recent searches are offered the field is empty and there are no results,
+  // so the arrows, Enter and Esc work on the searches instead.
+  const onHistoryKey = (event: KeyboardEvent<HTMLInputElement>): boolean => {
+    const step = { ArrowDown: 1, ArrowUp: -1 }[event.key as "ArrowDown" | "ArrowUp"];
+    if (step !== undefined) {
+      setHistoryActive((at) => moveSelection(at < 0 && step < 0 ? 0 : at, step, history.length));
+    } else if (event.key === "Enter" && history[historyActive] !== undefined) {
+      pickHistory(history[historyActive]);
+    } else if (event.key === "Escape") {
+      setHistoryShut(true);
+      setHistoryActive(-1);
+    } else {
+      return false;
+    }
+    event.preventDefault();
+    return true;
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (historyOpen && onHistoryKey(event)) {
+      return;
+    }
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.preventDefault();
       menuByKey.current = true;
@@ -284,43 +409,85 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
 
   return (
     <div className="workspace">
-      <Sidebar
-        active={active}
-        onActiveChange={(letter, error) => {
-          onActiveChange(letter);
-          if (error !== null) {
-            show(error, "error");
-          }
-          field.current?.focus();
-        }}
-        tags={tags}
-        selectedTags={filters.tags}
-        onTag={searchTag}
-      />
       <main className="search">
         <div className="search-header">
-          <label className="search-field">
-            <SearchGlyph />
-            <input
-              ref={field}
-              autoFocus
-              type="text"
-              spellCheck={false}
-              autoComplete="off"
-              placeholder={searchPlaceholder(active, filters.mode)}
-              aria-label="Search files and folders"
-              aria-controls="results"
-              value={state.query}
-              onChange={(event) => run(event.target.value)}
-              onKeyDown={onKeyDown}
-              onContextMenu={(event) => {
-                if (menuByKey.current) {
-                  event.preventDefault();
-                  menuByKey.current = false;
+          <div className="search-row">
+            <DrivePicker
+              active={active}
+              onChange={(letter, error) => {
+                onActiveChange(letter);
+                if (error !== null) {
+                  show(error, "error");
                 }
+                field.current?.focus();
               }}
             />
-          </label>
+            <div className="search-field">
+              <SearchGlyph />
+              <input
+                ref={field}
+                autoFocus
+                type="text"
+                spellCheck={false}
+                autoComplete="off"
+                placeholder={searchPlaceholder(active, filters.mode)}
+                aria-label="Search files and folders"
+                aria-controls={historyOpen ? "search-history" : "results"}
+                aria-expanded={historyOpen}
+                aria-activedescendant={
+                  historyOpen && historyActive >= 0 ? `history-${historyActive}` : undefined
+                }
+                value={state.query}
+                onChange={(event) => {
+                  setHistoryShut(false);
+                  setHistoryActive(-1);
+                  run(event.target.value);
+                }}
+                onFocus={() => setFocused(true)}
+                onBlur={() => {
+                  setFocused(false);
+                  setHistoryShut(false);
+                  setHistoryActive(-1);
+                }}
+                onKeyDown={onKeyDown}
+                onContextMenu={(event) => {
+                  if (menuByKey.current) {
+                    event.preventDefault();
+                    menuByKey.current = false;
+                  }
+                }}
+              />
+              {historyOpen && (
+                <HistoryMenu
+                  entries={history}
+                  active={historyActive}
+                  onPick={pickHistory}
+                  onForget={(entry) => keepHistory(forget(historyNow.current, entry))}
+                  onClear={() => keepHistory([])}
+                  onHover={setHistoryActive}
+                />
+              )}
+            </div>
+            <button
+              type="button"
+              className={busy ? "search-tool is-busy" : "search-tool"}
+              aria-label={rescanLabel}
+              title={rescanLabel}
+              disabled={busy}
+              onClick={onRescan}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M16.25 10a6.25 6.25 0 1 1-1.83-4.42M16.25 3.75v3.5h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
           <FilterBar filters={filters} tags={tags} onChange={changeFilters} />
         </div>
 
@@ -330,6 +497,7 @@ export function SearchView({ total, active, onActiveChange, tags, onTagsChanged 
             selected={state.selected}
             query={state.query}
             details={details}
+            sizes={sizes}
             meta={
               state.scan !== null
                 ? describeScan(state.hits.length, state.scan, state.tookMs)

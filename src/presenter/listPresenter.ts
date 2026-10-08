@@ -66,3 +66,11 @@ export function detailsWindow(first: number, last: number, count: number, chunk 
 export function needsMore(lastDrawn: number, loaded: number, more: boolean, ahead = 100): boolean {
   return more && loaded > 0 && lastDrawn >= loaded - ahead;
 }
+
+/**
+ * Whether the button back to the top is offered: once the list is scrolled past one
+ * screen, when finding the top by hand starts to take effort.
+ */
+export function showsBackToTop(scrollTop: number, height: number): boolean {
+  return height > 0 && scrollTop > height;
+}

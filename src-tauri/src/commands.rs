@@ -2,7 +2,9 @@
 //! A rule written here instead of in `model/` exists twice the day a second
 //! caller needs it.
 
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::error::{AppError, AppResult};
 use crate::model::about::{self, About};
@@ -11,10 +13,13 @@ use crate::model::db::Db;
 use crate::model::details::{self, Details};
 use crate::model::drives::{self, Drive};
 use crate::model::find::{self, Answer};
+use crate::model::folder_size::{FolderSize, Sizer};
+use crate::model::inbox;
 use crate::model::index::service::{Emit, IndexService, Status};
 use crate::model::launch;
 use crate::model::reveal;
 use crate::model::search::Filters;
+use crate::model::shell_menu;
 use crate::model::tags::{self, TagInfo};
 use crate::splash;
 use tauri::ipc::Channel;
@@ -28,6 +33,63 @@ pub fn status_emitter(app: &AppHandle) -> Emit {
             eprintln!("could not send the index status: {err}");
         }
     })
+}
+
+/// Applies the tag requests Explorer's menu leaves in `dir`, now and then every
+/// second, on a thread of its own; the frontend hears `tags-changed` when a folder
+/// was tagged, so it can read the tags again.
+pub fn watch_inbox(app: &AppHandle, dir: PathBuf) {
+    let app = app.clone();
+    std::thread::spawn(move || loop {
+        match inbox::drain(&app.state::<Db>(), &dir) {
+            Ok(0) => {}
+            Ok(_) => {
+                if let Err(err) = app.emit("tags-changed", ()) {
+                    eprintln!("could not report new tags: {err}");
+                }
+            }
+            Err(err) => eprintln!("could not read the tag inbox: {err}"),
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    });
+}
+
+/// Where the Explorer menu's pieces are: the helper beside Findex (the installer and
+/// `pnpm tauri dev` both put it there), Findex itself for the icon, and the inbox.
+fn menu_paths(app: &AppHandle) -> AppResult<(PathBuf, PathBuf, PathBuf)> {
+    let exe = std::env::current_exe()?;
+    let helper = exe.with_file_name("findex-tag.exe");
+    let inbox = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| AppError::Invalid(format!("no app data folder: {err}")))?
+        .join("inbox");
+    Ok((helper, exe, inbox))
+}
+
+/// Puts the Explorer menu in line with the setting and the tags; at start, a moved
+/// or updated install points it at the right helper again.
+pub fn sync_menu(app: &AppHandle) -> AppResult<()> {
+    let (helper, icon, inbox) = menu_paths(app)?;
+    shell_menu::sync(&app.state::<Db>(), &helper, &icon, &inbox)
+}
+
+/// Whether "Tag with Findex" is offered in Explorer's right-click menu.
+#[tauri::command]
+pub fn explorer_menu(db: State<'_, Db>) -> AppResult<bool> {
+    shell_menu::enabled(&db)
+}
+
+#[tauri::command]
+pub fn set_explorer_menu(app: AppHandle, enabled: bool) -> AppResult<()> {
+    let (helper, icon, inbox) = menu_paths(&app)?;
+    shell_menu::set_enabled(&app.state::<Db>(), enabled, &helper, &icon, &inbox)
+}
+
+/// Rewrites the Explorer menu after the tags changed.
+#[tauri::command]
+pub fn sync_explorer_menu(app: AppHandle) -> AppResult<()> {
+    sync_menu(&app)
 }
 
 #[tauri::command]
@@ -189,6 +251,24 @@ pub async fn describe_paths(app: AppHandle, paths: Vec<String>) -> AppResult<Vec
     .map_err(|err| AppError::Invalid(format!("reading file details stopped: {err}")))?
 }
 
+/// Each folder's size, sent as its walk ends; a newer call stops the walks of this
+/// one. Off the async runtime: it waits on the disk.
+#[tauri::command]
+pub async fn folder_sizes(
+    app: AppHandle,
+    paths: Vec<String>,
+    on_size: Channel<FolderSize>,
+) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Sizer>().sizes(&paths, &|size| {
+            // Fails only once the window is gone: nothing left to tell.
+            let _ = on_size.send(size);
+        });
+    })
+    .await
+    .map_err(|err| AppError::Invalid(format!("reading folder sizes stopped: {err}")))
+}
+
 #[tauri::command]
 pub fn add_tag(db: State<'_, Db>, path: &str, tag: &str) -> AppResult<Vec<String>> {
     tags::add(&db, path, tag)
@@ -234,4 +314,9 @@ pub fn open_terminal(path: &str) -> AppResult<()> {
 #[tauri::command]
 pub fn open_claude(path: &str) -> AppResult<()> {
     launch::open_claude(path)
+}
+
+#[tauri::command]
+pub fn open_vscode(path: &str) -> AppResult<()> {
+    launch::open_vscode(path)
 }

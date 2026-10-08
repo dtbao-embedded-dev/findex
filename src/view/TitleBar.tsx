@@ -1,5 +1,6 @@
 import iconUrl from "../../src-tauri/icons/icon.svg";
 import type { TitleState } from "../presenter/aboutPresenter";
+import { updateButton, type UpdateState } from "../presenter/updatePresenter";
 
 type Props = {
   title: TitleState;
@@ -7,16 +8,16 @@ type Props = {
   onToggleMaximize: () => Promise<void>;
   onClose: () => Promise<void>;
   onSettings: () => void;
-  onRescan: () => void;
-  /** What the re-scan button says on hover. */
-  rescanLabel: string;
-  /** True while a drive is being indexed: the re-scan button waits and turns. */
-  busy: boolean;
+  /** Where updates stand, for the update button. */
+  update: UpdateState;
+  /** Checks for an update now, or offers the downloaded one again. */
+  onUpdate: () => void;
 };
 
 /**
  * The custom title bar that replaces the native one (`decorations: false`): the app
- * icon, its name and version; the app's own tools; then the window buttons.
+ * icon, its name and version; the app's own tools (updates, then settings); then
+ * the window buttons.
  * Dragging needs no code: `data-tauri-drag-region` makes Tauri move the window.
  */
 export function TitleBar({
@@ -25,10 +26,10 @@ export function TitleBar({
   onToggleMaximize,
   onClose,
   onSettings,
-  onRescan,
-  rescanLabel,
-  busy,
+  update,
+  onUpdate,
 }: Props) {
+  const updates = updateButton(update);
   return (
     <header className="titlebar" data-tauri-drag-region>
       <span className="titlebar-brand" data-tauri-drag-region>
@@ -53,15 +54,15 @@ export function TitleBar({
       <div className="titlebar-tools">
         <button
           type="button"
-          className={busy ? "titlebar-tool is-busy" : "titlebar-tool"}
-          aria-label={rescanLabel}
-          title={rescanLabel}
-          disabled={busy}
-          onClick={onRescan}
+          className={updates.busy ? "titlebar-tool is-busy" : "titlebar-tool"}
+          aria-label={updates.label}
+          title={updates.label}
+          disabled={updates.busy}
+          onClick={onUpdate}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <path
-              d="M16.25 10a6.25 6.25 0 1 1-1.83-4.42M16.25 3.75v3.5h-3.5"
+              d="M10 3.25v9.5M6 8.75l4 4 4-4M4 16.25h12"
               fill="none"
               stroke="currentColor"
               strokeWidth="1.6"
@@ -69,6 +70,7 @@ export function TitleBar({
               strokeLinejoin="round"
             />
           </svg>
+          {updates.badge && <span className="titlebar-badge" aria-hidden="true" />}
         </button>
         <button
           type="button"

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { initialTitle, loadTitle } from "../presenter/aboutPresenter";
+import { menuTagsKey, syncMenu } from "../presenter/explorerPresenter";
+import { DEFAULT_THEME, loadTheme, saveTheme, type ThemeId } from "../presenter/themePresenter";
 import { loadActive } from "../presenter/drivePresenter";
 import type { TagInfo } from "../model/tags";
 import { revealMain } from "../presenter/splashPresenter";
-import { loadTags } from "../presenter/tagPresenter";
+import { loadTags, watchTags } from "../presenter/tagPresenter";
 import { rescan, rescanLabel, summarize, watchStatus } from "../presenter/statusPresenter";
 import {
   createUpdater,
@@ -13,6 +15,8 @@ import {
   type UpdateState,
 } from "../presenter/updatePresenter";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../model/window";
+import { AppearanceSettings } from "./AppearanceSettings";
+import { ExplorerSettings } from "./ExplorerSettings";
 import { SearchView } from "./SearchView";
 import { SettingsSheet } from "./SettingsSheet";
 import { TagSettings } from "./TagSettings";
@@ -31,12 +35,22 @@ export function App() {
   const [title, setTitle] = useState(initialTitle);
   const [active, setActive] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The colour theme, set on <html> so every surface and the settings follow it.
+  const [theme, setTheme] = useState<ThemeId>(DEFAULT_THEME);
   // Why a re-scan could not start; it fades like any other note.
   const [rescanError, setRescanError] = useState<string | null>(null);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
-  // The tag catalog, shared by the sidebar, the filters, the tag editor and the settings.
+  // The tag catalog, shared by the filters, the tag editor and the settings.
   const [tags, setTags] = useState<TagInfo[]>([]);
   const refreshTags = useCallback(() => void loadTags().then(setTags), []);
+  // Explorer's "Tag with Findex" menu lists the tags, so it is rewritten when their
+  // names change; a failure shows when the settings are opened.
+  const tagsKey = menuTagsKey(tags);
+  useEffect(() => {
+    if (tagsKey !== "") {
+      void syncMenu();
+    }
+  }, [tagsKey]);
   const [status, setStatus] = useState(() => summarize({ drives: [] }));
   const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
   const updater = useMemo(() => createUpdater({ onState: setUpdate }), []);
@@ -44,12 +58,21 @@ export function App() {
   useEffect(() => {
     void loadTitle().then(setTitle);
     refreshTags();
-    void revealMain(loadActive().then(setActive));
+    // The window is shown once the drive and the theme are known, so it never
+    // appears in the wrong colours first.
+    void revealMain(Promise.all([loadActive().then(setActive), loadTheme().then(setTheme)]));
     const stop = watchStatus(setStatus);
+    // A folder tagged from Explorer's menu shows its tag here without a restart.
+    const stopTags = watchTags(setTags);
     return () => {
       void stop.then((unlisten) => unlisten());
+      void stopTags.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => {
     if (rescanError === null) {
@@ -76,9 +99,8 @@ export function App() {
         onToggleMaximize={toggleMaximizeWindow}
         onClose={closeWindow}
         onSettings={() => setSettingsOpen(true)}
-        onRescan={() => void rescan().then(setRescanError)}
-        rescanLabel={rescanLabel(active, status.busy)}
-        busy={status.busy}
+        update={update}
+        onUpdate={() => void updater.check(true)}
       />
       <SearchView
         total={status.total}
@@ -86,17 +108,28 @@ export function App() {
         onActiveChange={setActive}
         tags={tags}
         onTagsChanged={refreshTags}
+        onRescan={() => void rescan().then(setRescanError)}
+        rescanLabel={rescanLabel(active, status.busy)}
+        busy={status.busy}
       />
       <UpdateBanner
         state={update}
         onRestart={() => void updater.restart()}
         onLater={updater.later}
       />
-      <StatusBar line={status} />
+      <StatusBar line={status} copyright={title.copyright} />
       {rescanError !== null && <Toast text={rescanError} tone="error" />}
       {settingsOpen && (
         <SettingsSheet onClose={closeSettings}>
+          <AppearanceSettings
+            theme={theme}
+            onTheme={(next) => {
+              setTheme(next);
+              void saveTheme(next);
+            }}
+          />
           <TagSettings catalog={tags} onCatalog={setTags} />
+          <ExplorerSettings />
         </SettingsSheet>
       )}
     </div>

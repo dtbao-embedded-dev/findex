@@ -10,6 +10,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "helper": "python docs/scripts/build-helper.py",
+    "helper:dev": "cargo build -p findex-tag --manifest-path src-tauri/Cargo.toml",
     "tauri": "tauri"
   },
   "dependencies": {
